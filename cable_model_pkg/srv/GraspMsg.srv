@@ -1,0 +1,7 @@
+bool set_mass0_grasped
+bool set_massN_grasped
+bool set_mass0_fixed
+bool set_massN_fixed
+---
+bool is_mass0_grasped
+bool is_massN_grasped
