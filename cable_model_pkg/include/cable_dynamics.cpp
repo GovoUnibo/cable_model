@@ -214,7 +214,11 @@ ignition::math::Vector3d MassSpringDamping::tripleCross(int i, int j, int k) {
     return u1.Cross(u2.Cross(u3));
 }
 
-
+ignition::math::Vector3d MassSpringDamping::tripleCross(ignition::math::Vector3d u1,
+                                                        ignition::math::Vector3d u2,
+                                                        ignition::math::Vector3d u3) {
+    return u1.Cross(u2.Cross(u3));
+}
 
 
 
@@ -248,11 +252,7 @@ void MassSpringDamping::bendingSpringForces(){
 
 }
 
-ignition::math::Vector3d MassSpringDamping::tripleCross(ignition::math::Vector3d u1,
-                                                        ignition::math::Vector3d u2,
-                                                        ignition::math::Vector3d u3) {
-    return u1.Cross(u2.Cross(u3));
-}
+
 
 double MassSpringDamping::getBeta(ignition::math::Vector3d link_vec, ignition::math::Vector3d fixed_vec) {
   return atan((link_vec.Cross(fixed_vec)).Length() / link_vec.Dot(fixed_vec));
