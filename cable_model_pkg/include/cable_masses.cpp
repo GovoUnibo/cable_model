@@ -35,6 +35,10 @@ void Particle::setGravityMode(bool _mode){
         link->SetGravityMode(_mode);
 }
 
+void Particle::setStatic(bool static_) {
+    link->SetStatic(static_);
+}
+
 void Particle::setFixed(bool fixed) {  //fixes the particle by disabling gravity and setting the link static (not updating forces)
     this->fixed = fixed;
     link->SetLinkStatic(fixed);
@@ -53,7 +57,14 @@ void Particle::updateVelocity(ignition::math::Vector3d vel) {
 
 void Particle::updateForce(ignition::math::Vector3d force_applied){
     if(!fixed)
-        link->SetForce(force_applied);
+        link->AddLinkForce(force_applied);
+
+        // link->SetForce(force_applied);
+}
+
+void Particle::updateAcceleration(ignition::math::Vector3d acc){
+    // if(!fixed)
+    //     link->SetLinearAccel(acc);  dice che non esiste mentre nella documentazione esiste... deprecated?
 }
 
 void Particle::updateTorque(ignition::math::Vector3d torque_applied){
@@ -90,6 +101,12 @@ ignition::math::Vector3d Particle::getAbsoluteVelocity(){
     // return link->WorldLinearVel();
 }
 
+            
+ignition::math::Vector3d Particle::getAbosulteAcceleration(){
+    return link->WorldLinearAccel();
+}
+
+
 ignition::math::Vector3d Particle::getInitialPosition(){
     return link->InitialRelativePose().Pos();
 }
@@ -97,4 +114,5 @@ ignition::math::Vector3d Particle::getInitialPosition(){
 ignition::math::Vector3d Particle::getForce() { 
     return link->WorldForce(); 
 }
+
 

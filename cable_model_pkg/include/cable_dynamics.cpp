@@ -31,8 +31,10 @@ MassSpringDamping::MassSpringDamping(int num_of_masses, float cable_length, floa
 
 
     this->mass_velocities.resize(this->num_of_masses);
+    this->mass_accelerations.resize(this->num_of_masses);
     this->mass_positions.resize(this->num_of_masses);
     this->mass_initial_positions.resize(this->num_of_masses);
+    
 
     this->relative_velocities.resize(this->num_of_links);
     this->damping_forces.resize(this->num_of_masses);
@@ -40,6 +42,7 @@ MassSpringDamping::MassSpringDamping(int num_of_masses, float cable_length, floa
 
 
     this->linear_forces.resize(this->num_of_masses);
+    this->inertia_forces.resize(this->num_of_masses);
     this->bending_forces.resize(this->num_of_masses);
     this->twisting_forces.resize(this->num_of_masses);
     this->link_displacement.resize(this->num_of_masses);
@@ -51,12 +54,7 @@ MassSpringDamping::MassSpringDamping(int num_of_masses, float cable_length, floa
 MassSpringDamping::~MassSpringDamping(){}
 
 
-void MassSpringDamping::computeGravity(bool isUsed){ 
-    if (isUsed) 
-        this->evaluateGravity(); 
-    else 
-        this->gravity_forces = ignition::math::Vector3d(0, 0, 0);
-}
+
 
 void MassSpringDamping::setYoungModulus(double young_modulus){ 
     this->E = young_modulus; 
@@ -103,14 +101,10 @@ void MassSpringDamping::setDamperCoef(float K_d){
     }
 
 
-void MassSpringDamping::updateMassVelocity(ignition::math::Vector3d velocity, int i) { this->mass_velocities[i] = velocity; }
-
-void MassSpringDamping::setMassInitialPosition(ignition::math::Vector3d position, int i){ 
-    this->mass_initial_positions[i] = position; 
-}
-
-void MassSpringDamping::updateMassPosition(ignition::math::Vector3d position, int i) { this->mass_positions[i] = position; }
-
+void MassSpringDamping::updateMassVelocity(ignition::math::Vector3d velocity, int i)    { this->mass_velocities[i]          = velocity; }
+void MassSpringDamping::updateMassAcceleration(ignition::math::Vector3d acc, int i)     { this->mass_accelerations[i]       = acc;      }
+void MassSpringDamping::setMassInitialPosition(ignition::math::Vector3d position, int i){ this->mass_initial_positions[i]   = position; }
+void MassSpringDamping::updateMassPosition(ignition::math::Vector3d position, int i)    { this->mass_positions[i]           = position; }
 // void MassSpringDamping::updateBeta(float beta_i, int i) { this->beta[i] = beta_i; }
 
 
@@ -119,7 +113,10 @@ void MassSpringDamping::computeSpringsForces(){
     this->bendingSpringForces();
     this->twistingSpringForces();
 }
-
+void MassSpringDamping::computeInertiaForces(){ 
+    for(int i=0; i<num_of_masses; i++)
+        this->inertia_forces[i] = discrete_mass *this->mass_accelerations[i];
+}
 
 void MassSpringDamping::updateRelativeVelocities(){
     for(int i=0; i<this->num_of_links; i++){
@@ -129,14 +126,17 @@ void MassSpringDamping::updateRelativeVelocities(){
 }
 
 void MassSpringDamping::computeDampingForces() {
-    // f_1 = d(x2_dot - x1_dot) --> 0 elemento
-    // f_2 = d(x1_dot- x2_dot) - d(x3_dot - x2_dot) = - d(x2_dot - x1_dot) - d(x3_dot - x2_dot)
-    // f_3 = d(x2_dot - x3_dot) --> n-1 elemento dell'array
+    // m2*x_dotdot + d(x2_dot - x1_dot) + d(x2_dot - x3_dot) = 0 ==> mx_dotdot +  d(x2_dot - x1_dot) + d(x2_dot - x3_dot)
+    // f_1 = d(x1_dot - x2_dot) --> 0 elemento
+    // f_2_d = - x1_dot + 2 x2_dot - x3_dot
+    // f_3 = d(x3_dot - x2_dot) --> n-1 elemento dell'array
     this->updateRelativeVelocities();
-    this->damping_forces.front() = this->damping_factor*this->relative_velocities.front();
+    this->damping_forces.front() = this->damping_factor*this->relative_velocities.front() - this->damping_factor*this->relative_velocities[1];
     for(int i=1; i<this->num_of_masses -1; i++)
-        this->damping_forces[i] =  - this->damping_factor*this->relative_velocities[i-1] + this->damping_factor*this->relative_velocities[i];
-    this->damping_forces.back() = - this->damping_factor*this->relative_velocities.back();
+        this->damping_forces[i] =   - this->damping_factor*this->relative_velocities[i-1] 
+                                    + 2*this->damping_factor*this->relative_velocities[i]
+                                    - this->damping_factor*this->relative_velocities[i+1];
+    this->damping_forces.back() = this->damping_factor*this->relative_velocities.back() - this->damping_factor*this->relative_velocities[this->num_of_masses-2];
 
     //PRINT
     // for(int i=0; i<this->num_of_masses; i++)
@@ -146,34 +146,23 @@ void MassSpringDamping::computeDampingForces() {
 
 
 void MassSpringDamping::linearSpringForces(){
-    // f_1 = k(x2 - x1) --> 0 elemento
-    // f_2 = k(x1 - x2) - k(x3 - x2) = - k(x2 - x1) - k(x3 - x2)
-    // f_3 = k(x2 - x3) --> n-1 elemento dell'array
+    // m1*xdd + k(x1-x2) +k(telaio-> la mass prima non esiste) ==> -k (x2- x1)
+    // m2*xdd + k(x2 - x1) + k(x2 - x3) = 0 ==> k(x2 - x1) - k (k3 - x2) ==> consisntency with 1 function getLinkLength(i - (i-1))
+    // f_3 = k(x3 - x2) + k(la massa dopo non esiste) 
+   // questa formula è presa pari pari dal paper di cable dynamics
     
-    this->linear_forces.front() = this->linear_spring*round_to((this->getLinkLength(1).Length() - this->l0/this->num_of_links), 1e-5)*this->getUnitVersor(1);
+    this->linear_forces.front() = - this->linear_spring*round_to((this->getLinkLength(1).Length() - this->l0/this->num_of_links), 1e-5)*this->getUnitVersor(1);
     for(int i=1; i<this->num_of_masses; i++){
-        this->linear_forces[i] =    this->linear_spring*round_to((this->getLinkLength(i+1).Length() - this->l0/this->num_of_links), 1e-5)*this->getUnitVersor(i+1)
-                                    -this->linear_spring*round_to((this->getLinkLength(i).Length() - this->l0/this->num_of_links), 1e-5)*this->getUnitVersor(i);    
-    }             
-    this->linear_forces.back() = - this->linear_spring*round_to((this->getLinkLength(num_of_masses-1).Length() - this->l0/this->num_of_links), 1e-5)*this->getUnitVersor(this->num_of_masses-1);
-    double cable_tension_right;
-    // double cable_tension_left;
+        this->linear_forces[i] =  -this->linear_spring*round_to((this->getLinkLength(i).Length() - this->l0/this->num_of_links), 1e-5)*this->getUnitVersor(i)
+                                 +this->linear_spring*round_to((this->getLinkLength(i+1).Length() - this->l0/this->num_of_links), 1e-5)*this->getUnitVersor(i+1);    
     
-    // cable_tension_right = this->linear_spring*round_to((this->getLinkLength(1).Length() - this->l0/this->num_of_links), 1e-5);
+    }             
+    this->linear_forces.back() = + this->linear_spring*round_to((this->getLinkLength(num_of_masses-1).Length() - this->l0/this->num_of_links), 1e-5)*this->getUnitVersor(this->num_of_masses-1);
+    
     // cable_tension_right = ( abs(cable_tension_right) < this->F_max) ? cable_tension_right : this->F_max;
-    // this->linear_forces.front() = cable_tension_right *this->getUnitVersor(1);
 
-    // for(int i=1; i<this->num_of_masses; i++){
-    //     cable_tension_right = this->linear_spring*round_to((this->getLinkLength(i+1).Length() - this->l0/this->num_of_links), 1e-5);
-    //     cable_tension_right = ( abs(cable_tension_right) < this->F_max) ? cable_tension_right : this->F_max;
-    //     cable_tension_left = this->linear_spring*round_to((this->getLinkLength(i).Length() - this->l0/this->num_of_links), 1e-5);
-    //     cable_tension_left = ( abs(cable_tension_left) < this->F_max) ? cable_tension_left : this->F_max;
-    //     this->linear_forces[i] =    cable_tension_right *this->getUnitVersor(i+1)
-    //                                 - cable_tension_left*this->getUnitVersor(i);    
-    // }             
-    // cable_tension_left = this->linear_spring*round_to((this->getLinkLength(num_of_masses-1).Length() - this->l0/this->num_of_links), 1e-5);
-    // cable_tension_left = ( abs(cable_tension_left) < this->F_max) ? cable_tension_left : this->F_max;
-    // this->linear_forces.back() = -cable_tension_left*this->getUnitVersor(this->num_of_masses-1);
+
+
     
     
     
@@ -214,11 +203,7 @@ ignition::math::Vector3d MassSpringDamping::tripleCross(int i, int j, int k) {
     return u1.Cross(u2.Cross(u3));
 }
 
-ignition::math::Vector3d MassSpringDamping::tripleCross(ignition::math::Vector3d u1,
-                                                        ignition::math::Vector3d u2,
-                                                        ignition::math::Vector3d u3) {
-    return u1.Cross(u2.Cross(u3));
-}
+
 
 
 
@@ -252,7 +237,11 @@ void MassSpringDamping::bendingSpringForces(){
 
 }
 
-
+ignition::math::Vector3d MassSpringDamping::tripleCross(ignition::math::Vector3d u1,
+                                                        ignition::math::Vector3d u2,
+                                                        ignition::math::Vector3d u3) {
+    return u1.Cross(u2.Cross(u3));
+}
 
 double MassSpringDamping::getBeta(ignition::math::Vector3d link_vec, ignition::math::Vector3d fixed_vec) {
   return atan((link_vec.Cross(fixed_vec)).Length() / link_vec.Dot(fixed_vec));
@@ -354,10 +343,6 @@ void MassSpringDamping::twistingSpringForces(){
 
 }
 
-
-
- 
-
 ignition::math::Vector3d MassSpringDamping::getTwistingForce(int i){ // Torque is a twisting or turning force 
     // cout << "Twisting force " << i << ": "   << endl;
     return this->twisting_forces[i];
@@ -365,10 +350,8 @@ ignition::math::Vector3d MassSpringDamping::getTwistingForce(int i){ // Torque i
 
 void MassSpringDamping::evaluateGravity()
 {   
-        this->gravity_forces =  this->discrete_mass * this->gravity_acceleration;
+    this->gravity_forces =  this->discrete_mass * this->gravity_acceleration;
 }
-
-
 
 ignition::math::Vector3d MassSpringDamping::getResultantForce(int i) {
     // cout << "Damping force " << i << ": " << this->damping_forces[i] << endl;
@@ -379,7 +362,9 @@ ignition::math::Vector3d MassSpringDamping::getResultantForce(int i) {
     // cout << "Result Forces" << " 0" << ": " << this->damping_forces[0] + linear_forces[0] + this->bending_forces[0] /*+ this->twisting_forces[i]*/ << endl;
     // cout << "Result Forces" << " 8" << ": " << this->damping_forces[8] + linear_forces[8] + this->bending_forces[8] /*+ this->twisting_forces[i]*/ << endl;
     // cout << "Gravity" << ": " << this->gravity_forces << endl;
-    return linear_forces[i] + this->damping_forces[i] + this->bending_forces[i] + this->gravity_forces;//+ this->twisting_forces[i]/1000000;
+    // cout << "Intertia Forces " << i << ": " << this->inertia_forces[i] << endl;
+    
+    return this->inertia_forces[i] + linear_forces[i] + this->damping_forces[i] + this->bending_forces[i] + this->gravity_forces;//+ this->twisting_forces[i]/1000000;
 }
 
 

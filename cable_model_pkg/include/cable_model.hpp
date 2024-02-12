@@ -50,6 +50,7 @@ namespace cable_utils {
             ignition::math::Vector3d tripleCross(ignition::math::Vector3d u1, ignition::math::Vector3d u2, ignition::math::Vector3d u3);
 
             bool isFirstMassGrasped, isLastMassGrasped;
+            bool use_gravity;
 
 
         public:

@@ -37,20 +37,26 @@ namespace mass{
             ignition::math::Vector3d getAbsoluteRotation();
             ignition::math::Vector3d getAbsolutePosition();
             ignition::math::Vector3d getAbsoluteVelocity();
+            ignition::math::Vector3d getAbosulteAcceleration();
             
 
 
             void updateForce(ignition::math::Vector3d force_applied);
             void updateTorque(ignition::math::Vector3d torque_applied);
-            void updateVelocity(ignition::math::Vector3d vel);
+            
             void updatePosition(ignition::math::Pose3d pos);
+            void updateVelocity(ignition::math::Vector3d vel);
+            void updateAcceleration(ignition::math::Vector3d acc);
+            
 
             void updateAngularVelocity(ignition::math::Vector3d vel) ;
             
             bool isFixed();
             void setFixed(bool fixed);
+            void setStatic(bool static_);
             void setGrasped(bool grasped);
             bool isGrasped();
+
 
     };
 
