@@ -3,16 +3,16 @@ from scipy.integrate import solve_ivp, odeint
 from plotter import CablePlotter
 from matplotlib.animation import FuncAnimation
 import matplotlib.pyplot as plt
+from typing import Type
 
 def triple_cross(u1, u2, u3):
     return np.cross(u1, np.cross(u2, u3))
 
-class CableMass():
+class CableParticle():
     def __init__(self, mass, initial_pos, intial_velocity):
         self.mass = mass
-
-        self.position = initial_pos
-        self.velocity = intial_velocity
+        self.initial_pos = initial_pos
+        self.intial_velocity = intial_velocity
         
         self.damping_force = np.zeros(3)
         self.linear_elastic_force= np.zeros(3)
@@ -21,7 +21,12 @@ class CableMass():
         self.gravity_force = np.array([0.0, 0.0, -mass*9.81])
 
         self.external_forces = np.zeros(3)
-    
+
+        self.fixed = False
+
+    def set_fixed(self, fixed):
+        self.fixed = fixed
+
     def set_damping_force(self, force):
         self.damping_force = force
     
@@ -38,22 +43,10 @@ class CableMass():
         self.external_forces = forces
     
     def get_acceleration(self):
+        if self.fixed:
+            return np.zeros(3)
+        
         return -(self.gravity_force + self.linear_elastic_force + self.bending_elastic_force + self.twisting_elastic_force + self.external_forces + self.damping_force) / self.mass
-
-    # def compute_velocity(self, dt):
-    #     self.velocity += self.get_acceleration() * dt
-    #     return self
-    
-    # def get_velocity(self):
-    #     return self.velocity
-
-    # def compute_position(self, dt): 
-    #     self.position += self.velocity * dt    
-    #     return self.position
-
-    # def get_position(self):
-    #     return self.position
-
 
 class Cable():
     def __init__(self, num_of_masses, cable_length, total_mass, cable_diameter, first_mass_initial_pos):
@@ -81,25 +74,15 @@ class Cable():
         self.mass_velocities = [np.zeros(3) for _ in range(self.num_of_masses)]
         self.mass_positions = [first_mass_initial_pos + i*self._fixed_axis*self.resolution for i in range(self.num_of_masses)]
         self.relative_velocities = [np.zeros(3) for _ in range(self.num_of_links)]
-        self.damping_forces = [np.zeros(3) for _ in range(self.num_of_masses)]
-        self.linear_forces = [np.zeros(3) for _ in range(self.num_of_masses)]
-        self.bending_forces = [np.zeros(3) for _ in range(self.num_of_masses)]
-        self.twisting_forces = [np.zeros(3) for _ in range(self.num_of_masses)]
+
         self.link_displacement = [0.0 for _ in range(self.num_of_masses)]
         self.beta = [0.0 for _ in range(self.num_of_masses)]
         self.psi = [0.0 for _ in range(self.num_of_masses)]
 
+        self.discretization_particles = [CableParticle(self.discrete_mass, self.mass_positions[i], self.mass_velocities[i]) for i in range(self.num_of_masses)]
+
+        # plot
         self.plotter = CablePlotter()
-
-    def __update_animation(self, frame):
-        x = [self.mass_positions[i][0] for i in range(self.num_of_masses)]
-        y = [self.mass_positions[i][1] for i in range(self.num_of_masses)]
-        z = [self.mass_positions[i][2] for i in range(self.num_of_masses)]
-        self.plotter.draw_point_cloud(x, y, z, self.diameter)
-
-    def show(self):
-        ani = FuncAnimation(self.plotter.fig, self.__update_animation, interval=100)
-        plt.show()
 
     #coef initialization
     def setYoungModulus(self, young_modulus):
@@ -139,59 +122,86 @@ class Cable():
         self.damping_factor = K_d
         # self.damping_factor = 2 * torch.sqrt(self.linear_spring) 
         print(f"Damping factor: {self.damping_factor}")
-
-    # def update_mass_velocity(self, velocity, i):
-    #         self.mass_velocities[i] = velocity
-
-    # def set_mass_initial_position(self, position, i):
-    #     self.mass_initial_positions[i] = position
-
-    # def update_mass_position(self, position, i):
-    #     self.mass_positions[i] = position
     
-    # def update_relative_velocities(self):
-    #     for i in range(self.num_of_links):
-    #         self.relative_velocities[i] = self.mass_velocities[i + 1] - self.mass_velocities[i]
+    def fix_mass(self, i:Type[int]):
+        self.discretization_particles[i].set_fixed(True)
 
-    # def compute_damping_forces(self):
-    #     # m2*x_dotdot + d(x2_dot - x1_dot) + d(x2_dot - x3_dot) = 0 ==> mx_dotdot +  d(x2_dot - x1_dot) + d(x2_dot - x3_dot)
-    #     # f_1 = d(x1_dot - x2_dot) --> 0 elemento
-    #     # f_2_d = - x1_dot + 2 x2_dot - x3_dot
-    #     # f_3 = d(x3_dot - x2_dot) --> n-1 elemento dell'array
-    #     self.update_relative_velocities()
-    #     self.damping_forces[0] = self.damping_factor * self.relative_velocities[0] - self.damping_factor * self.relative_velocities[1]
-    #     for i in range(1, self.num_of_masses - 1):
-    #         self.damping_forces[i] = -self.damping_factor * self.relative_velocities[i - 1] \
-    #                                 + 2 * self.damping_factor * self.relative_velocities[i] \
-    #                                 - self.damping_factor * self.relative_velocities[i + 1]
-    #     self.damping_forces[-1] = self.damping_factor * self.relative_velocities[-1] - self.damping_factor * self.relative_velocities[self.num_of_masses - 2]
+    def compute_damping_forces(self):
+        # m2*x_dotdot + d(x2_dot - x1_dot) + d(x2_dot - x3_dot) = 0 ==> mx_dotdot +  d(x2_dot - x1_dot) + d(x2_dot - x3_dot)
+        # f_1 = d(x1_dot - x2_dot) --> 0 elemento
+        # f_2_d = - x1_dot + 2 x2_dot - x3_dot
+        # f_3 = d(x3_dot - x2_dot) --> n-1 elemento dell'array
+        self.discretization_particles[0].set_damping_force(
+                                self.damping_factor * (self.discretization_particles[0].velocity - self.discretization_particles[1].velocity)
+                                ) 
+        for i in range(1, self.num_of_masses - 1):
+            self.discretization_particles[i].set_damping_force(
+                self.damping_factor * (self.discretization_particles[i].velocity - self.discretization_particles[i - 1].velocity) 
+                + self.damping_factor * (self.discretization_particles[i].velocity - self.discretization_particles[i + 1].velocity)
+                )
+        self.discretization_particles[-1].set_damping_force(
+                                self.damping_factor * (self.discretization_particles[-1].velocity - self.discretization_particles[-2].velocity)
+                                )
 
+    def __get_link_length(self, i):
+        return self.discretization_particles[i].position - self.discretization_particles[i - 1].position
+    
+    def __get_unit_versor(self, i):
+        return self.__get_link_length(i) / np.linalg.norm(self.__get_link_length(i))
+    
+    def linear_spring_forces(self):
+        # m1*xdd + k(x1-x2) +k(telaio-> la mass prima non esiste) ==> -k (x2- x1)
+        # m2*xdd + k(x2 - x1) + k(x2 - x3) = 0 ==> k(x2 - x1) - k (k3 - x2) ==> consisntency with 1 function getLinkLength(i - (i-1))
+        # f_3 = k(x3 - x2) + k(la massa dopo non esiste) 
+        # questa formula è presa pari pari dal paper di cable dynamics
 
-    # def linear_spring_forces(self):
-    #     # m1*xdd + k(x1-x2) +k(telaio-> la mass prima non esiste) ==> -k (x2- x1)
-    #     # m2*xdd + k(x2 - x1) + k(x2 - x3) = 0 ==> k(x2 - x1) - k (k3 - x2) ==> consisntency with 1 function getLinkLength(i - (i-1))
-    #     # f_3 = k(x3 - x2) + k(la massa dopo non esiste) 
-    #     # questa formula è presa pari pari dal paper di cable dynamics
+        # self.linear_forces[0] = -self.linear_spring * round((np.linalg.norm(self.get_link_length(1)) - self.l0 / self.num_of_links) / 1e-5) * self.get_unit_versor(1)
+        self.discretization_particles[0].set_linear_elastic_force(
+                                self.linear_spring * round((np.linalg.norm(self.__get_link_length(1)) - self.l0 / self.num_of_links) / 1e-5) * self.__get_unit_versor(1)
+                                )
+        for i in range(1, self.num_of_masses-1):
+            self.discretization_particles[i].set_linear_elastic_force(
+                                + self.linear_spring * round((np.linalg.norm(self.__get_link_length(i)) - self.l0 / self.num_of_links) / 1e-5) * self.__get_unit_versor(i) 
+                                - self.linear_spring * round((np.linalg.norm(self.__get_link_length(i + 1)) - self.l0 / self.num_of_links) / 1e-5) * self.__get_unit_versor(i + 1)
+                                )
+        self.discretization_particles[-1].set_linear_elastic_force(
+                                + self.linear_spring * round((np.linalg.norm(self.__get_link_length(self.num_of_masses - 1)) - self.l0 / self.num_of_links) / 1e-5) * self.__get_unit_versor(self.num_of_masses - 1)
+                                )
 
-    #     self.linear_forces[0] = -self.linear_spring * round((np.linalg.norm(self.get_link_length(1)) - self.l0 / self.num_of_links) / 1e-5) * self.get_unit_versor(1)
-    #     for i in range(1, self.num_of_masses):
-    #         self.linear_forces[i] = -self.linear_spring * round((np.linalg.norm(self.get_link_length(i)) - self.l0 / self.num_of_links) / 1e-5) * self.get_unit_versor(i) \
-    #                                 + self.linear_spring * round((np.linalg.norm(self.get_link_length(i + 1)) - self.l0 / self.num_of_links) / 1e-5) * self.get_unit_versor(i + 1)    
+    def __update_animation(self, frame):
+        x = [self.discretization_particles[i].position[0] for i in range(self.num_of_masses)]
+        y = [self.discretization_particles[i].position[1] for i in range(self.num_of_masses)]
+        z = [self.discretization_particles[i].position[2] for i in range(self.num_of_masses)]
+        self.plotter.draw_point_cloud(x, y, z, self.diameter)
+
+    def show(self):
+        ani = FuncAnimation(self.plotter.fig, self.__update_animation, interval=100)
+        plt.show()
+    
+    def update_internal_forces(self, x, t):
+        for i in range(self.num_of_masses):
+            self.discrete_mass[i].position = x[i]
+            self.discrete_mass[i].velocity = x[i + self.num_of_masses]
+
+        self.compute_damping_forces()
+        self.linear_spring_forces()
+        #stack together the acceleration of each particle and velocity
+        for i in range(self.num_of_masses):
+            
+
+    def update_external_forces(self, forces, i:Type[int]):
+        self.discretization_particles[i].set_external_forces(forces)
+    
+    def solve_using_odeint(self, t_span, y0, t_eval):
+        pass
+    
+    def 
         
-    #     self.linear_forces[-1] = + self.linear_spring * round((np.linalg.norm(self.get_link_length(self.num_of_masses - 1)) - self.l0 / self.num_of_links) / 1e-5) * self.get_unit_versor(self.num_of_masses - 1)
-
-    #     # cable_tension_right = ( abs(cable_tension_right) < this->F_max) ? cable_tension_right : this->F_max
-
-    #     # PRINT
-    #     # for i in range(self.num_of_masses):
-    #     #     print("Linear force {}: {}".format(i, self.linear_forces[i]))
-
-
 
 if __name__ == "__main__":
 
     lenght = 2
-    width = 0.006
+    width = 0.06
     mass = 0.03
     damping = 0.3
     poisson_ratio = 0.3
@@ -202,6 +212,8 @@ if __name__ == "__main__":
     cable.setYoungModulus(young_modulus)
     cable.setPoissonRatio(poisson_ratio)
     cable.setDamperCoef(damping)
-
     
-    # cable.show()
+    cable.fix_mass(0)
+    cable.update_internal_forces()
+    
+    cable.show()

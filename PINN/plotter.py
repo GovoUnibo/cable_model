@@ -19,7 +19,7 @@ class CablePlotter(object):
         if self.scatter is not None:
             self.scatter.remove()
 
-        self.scatter = self.ax.scatter(x, y, z, c='r', marker='o', s=point_diameter)
+        self.scatter = self.ax.scatter(x, y, z, c='r', marker='o', s=point_diameter, alpha=1)
 
 
 
