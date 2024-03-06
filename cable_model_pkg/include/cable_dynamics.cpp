@@ -128,7 +128,7 @@ void MassSpringDamping::updateRelativeVelocities(){
 void MassSpringDamping::computeDampingForces() {
     // m2*x_dotdot + d(x2_dot - x1_dot) + d(x2_dot - x3_dot) = 0 ==> mx_dotdot +  d(x2_dot - x1_dot) + d(x2_dot - x3_dot)
     // f_1 = d(x1_dot - x2_dot) --> 0 elemento
-    // f_2_d = - x1_dot + 2 x2_dot - x3_dot
+    // f_2 = - x1_dot + 2 x2_dot - x3_dot
     // f_3 = d(x3_dot - x2_dot) --> n-1 elemento dell'array
     this->updateRelativeVelocities();
     this->damping_forces.front() = this->damping_factor*this->relative_velocities.front() - this->damping_factor*this->relative_velocities[1];
@@ -153,18 +153,13 @@ void MassSpringDamping::linearSpringForces(){
     
     this->linear_forces.front() = - this->linear_spring*round_to((this->getLinkLength(1).Length() - this->l0/this->num_of_links), 1e-5)*this->getUnitVersor(1);
     for(int i=1; i<this->num_of_masses; i++){
-        this->linear_forces[i] =  -this->linear_spring*round_to((this->getLinkLength(i).Length() - this->l0/this->num_of_links), 1e-5)*this->getUnitVersor(i)
-                                 +this->linear_spring*round_to((this->getLinkLength(i+1).Length() - this->l0/this->num_of_links), 1e-5)*this->getUnitVersor(i+1);    
+        this->linear_forces[i] =  - this->linear_spring*round_to((this->getLinkLength(i).Length() - this->l0/this->num_of_links), 1e-5)*this->getUnitVersor(i)
+                                  + this->linear_spring*round_to((this->getLinkLength(i+1).Length() - this->l0/this->num_of_links), 1e-5)*this->getUnitVersor(i+1);    
     
     }             
     this->linear_forces.back() = + this->linear_spring*round_to((this->getLinkLength(num_of_masses-1).Length() - this->l0/this->num_of_links), 1e-5)*this->getUnitVersor(this->num_of_masses-1);
-    
+    // CRISTO SANTO I SEGNI DOVREBBER ESSERE INVERTITI
     // cable_tension_right = ( abs(cable_tension_right) < this->F_max) ? cable_tension_right : this->F_max;
-
-
-
-    
-    
     
     //PRINT
     // for(int i=0; i<this->num_of_masses; i++)
@@ -365,6 +360,7 @@ ignition::math::Vector3d MassSpringDamping::getResultantForce(int i) {
     // cout << "Intertia Forces " << i << ": " << this->inertia_forces[i] << endl;
     
     return this->inertia_forces[i] + linear_forces[i] + this->damping_forces[i] + this->bending_forces[i] + this->gravity_forces;//+ this->twisting_forces[i]/1000000;
+
 }
 
 
