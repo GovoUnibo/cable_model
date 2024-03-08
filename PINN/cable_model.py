@@ -11,8 +11,8 @@ def triple_cross(u1, u2, u3):
 class CableParticle():
     def __init__(self, mass, initial_pos, intial_velocity):
         self.mass = mass
-        self.initial_pos = initial_pos
-        self.intial_velocity = intial_velocity
+        self.initial_pos = initial_pos 
+        self.intial_velocity = intial_velocity 
         
         self.damping_force = np.zeros(3)
         self.linear_elastic_force= np.zeros(3)
@@ -23,6 +23,9 @@ class CableParticle():
         self.external_forces = np.zeros(3)
 
         self.fixed = False
+
+        self.position = initial_pos
+        self.velocity = intial_velocity
 
     def set_fixed(self, fixed):
         self.fixed = fixed
@@ -46,7 +49,7 @@ class CableParticle():
         if self.fixed:
             return np.zeros(3)
         
-        return -(self.gravity_force + self.linear_elastic_force + self.bending_elastic_force + self.twisting_elastic_force + self.external_forces + self.damping_force) / self.mass
+        return (self.gravity_force - self.linear_elastic_force - self.bending_elastic_force - self.twisting_elastic_force - self.external_forces + self.damping_force) / self.mass
 
 class Cable():
     def __init__(self, num_of_masses, cable_length, total_mass, cable_diameter, first_mass_initial_pos):
@@ -65,9 +68,6 @@ class Cable():
         self.I_p = np.pi * (cable_diameter**4) / 32
         self.E = self.G = 0.0
         # Gravity
-
-        # cable discretizzation parameters
-        
 
         # forces and other variables
         self._fixed_axis = np.array([1.0, 0.0, 0.0])
@@ -178,24 +178,56 @@ class Cable():
         ani = FuncAnimation(self.plotter.fig, self.__update_animation, interval=100)
         plt.show()
     
-    def update_internal_forces(self, x, t):
+    def _update_internal_forces(self, x, v):
         for i in range(self.num_of_masses):
-            self.discrete_mass[i].position = x[i]
-            self.discrete_mass[i].velocity = x[i + self.num_of_masses]
-
-        self.compute_damping_forces()
-        self.linear_spring_forces()
-        #stack together the acceleration of each particle and velocity
+            self.discretization_particles[i].position = x[i]
+            self.discretization_particles[i].velocity = v[i]
+        # self.compute_damping_forces()
+        # self.linear_spring_forces()
         for i in range(self.num_of_masses):
-            
+            print(self.discretization_particles[i].get_acceleration())
+        return [self.discretization_particles[i].get_acceleration() for i in range(self.num_of_masses)]
+    
 
     def update_external_forces(self, forces, i:Type[int]):
         self.discretization_particles[i].set_external_forces(forces)
     
-    def solve_using_odeint(self, t_span, y0, t_eval):
-        pass
+    def update(self, x0, t):
+        #x and t must be lists
+        # if not isinstance(x, list) or not isinstance(t, list):
+        #     raise ValueError("x and t must be lists")
+        
+        half_length = len(x0) // 2
+        x = np.array([x0[i:i+3] for i in range(0, half_length, 3)])
+
+        v = np.array([x0[i:i+3] for i in range(half_length, len(x0), 3)])
+
+        accelerations = self._update_internal_forces(x, v)
+        
+        v = x0[half_length:]
+
+        vx = [v[i] for i in range(0, len(v), 3)]
+        vy = [v[i] for i in range(1, len(v), 3)]
+        vz = [v[i] for i in range(2, len(v), 3)]
+
+        ax = [accelerations[i][0] for i in range(self.num_of_masses)]
+        ay = [accelerations[i][1] for i in range(self.num_of_masses)]
+        az = [accelerations[i][2] for i in range(self.num_of_masses)]
+
+
+        return vx + vy + vz + ax + ay + az
+
+
+        
+
+    def get_initial_positions(self) -> np.array:
+        return np.array([self.discretization_particles[i].initial_pos for i in range(self.num_of_masses)])
     
-    def 
+    def get_initial_velocities(self) -> np.array:
+        return np.array([self.discretization_particles[i].intial_velocity for i in range(self.num_of_masses)])
+
+    
+
         
 
 if __name__ == "__main__":
@@ -206,7 +238,7 @@ if __name__ == "__main__":
     damping = 0.3
     poisson_ratio = 0.3
     young_modulus = 126000000
-    cable_masses = 15
+    cable_masses = 3
 
     cable = Cable(cable_masses, lenght, mass, width, first_mass_initial_pos=np.array([1.0, 0.0, 0.0]))
     cable.setYoungModulus(young_modulus)
@@ -214,6 +246,15 @@ if __name__ == "__main__":
     cable.setDamperCoef(damping)
     
     cable.fix_mass(0)
-    cable.update_internal_forces()
     
-    cable.show()
+    x0 = np.concatenate((cable.get_initial_positions().reshape(-1), cable.get_initial_velocities().reshape(-1))).reshape(-1)
+    t= np.linspace(0, 1, 1000)
+
+    
+    
+    # cable.update(x0, t)
+    x = odeint(cable.update, x0, t)
+    
+
+
+
