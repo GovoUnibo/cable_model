@@ -65,10 +65,10 @@ void CableModelPlugin::Load(physics::ModelPtr _parent, sdf::ElementPtr _sdf){
     ros::init(argc, argv, "cable_plugin_client",
         ros::init_options::NoSigintHandler);
   }
-  publish_force_mass_0 = ros_nh.advertise<cable_model::coordinates>("/force_mass_0", 1);
+  publish_force_mass_0 = ros_nh.advertise<cable_model_pkg::coordinates>("/force_mass_0", 1);
 }
 
-bool CableModelPlugin::callbackGraspServer(cable_model::GraspMsg::Request &rqst, cable_model::GraspMsg::Response &res){
+bool CableModelPlugin::callbackGraspServer(cable_model_pkg::GraspMsg::Request &rqst, cable_model_pkg::GraspMsg::Response &res){
                             cable->setFirstMassGrasped(rqst.set_mass0_grasped);
                             cable->setLastMassGrasped(rqst.set_massN_grasped);
                             cable->setFirstMassFixed(rqst.set_mass0_fixed);

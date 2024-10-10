@@ -40,6 +40,7 @@ include_directories(
   ${catkin_INCLUDE_DIRS}
   include
   include/cable_model
+  
 
 )
 

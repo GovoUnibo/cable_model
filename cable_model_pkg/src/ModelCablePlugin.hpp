@@ -14,8 +14,8 @@
 #include <string>
 #include <cable_model.hpp>
 
-#include <cable_model/GraspMsg.h>
-#include <cable_model/coordinates.h>
+#include <cable_model_pkg/GraspMsg.h>
+#include <cable_model_pkg/coordinates.h>
 
 // #include <std_msgs/Bool.h>
 
@@ -54,8 +54,8 @@ namespace gazebo
             ros::ServiceServer grasp_service;
             ros::NodeHandle ros_nh;
 
-            bool callbackGraspServer(   cable_model::GraspMsg::Request &rqst,
-                                        cable_model::GraspMsg::Response &res
+            bool callbackGraspServer(   cable_model_pkg::GraspMsg::Request &rqst,
+                                        cable_model_pkg::GraspMsg::Response &res
                                     );
 
 
@@ -79,7 +79,7 @@ namespace gazebo
             ros::Publisher publish_force_mass_0;
 
             ignition::math::Vector3d force_mass_0;
-            cable_model::coordinates force_mass_0_msg;
+            cable_model_pkg::coordinates force_mass_0_msg;
 
     };
 
