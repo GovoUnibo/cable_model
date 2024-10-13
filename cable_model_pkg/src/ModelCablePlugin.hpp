@@ -9,7 +9,8 @@
 #include <ignition/math/Vector3.hh>
 #include <ros/ros.h>
 #include <iostream>
-#include <chrono>  
+#include <fstream>
+#include <chrono> 
 #include <vector>
 #include <string>
 #include <cable_model.hpp>
@@ -36,6 +37,15 @@ namespace gazebo
             ~CableModelPlugin(){
                 ros::shutdown();
                 std::cout << "cable model plugin stopped." << std::endl;
+                if (forces_csv_file.is_open()) {
+                    forces_csv_file.close();
+                    std::cout << "File forces_data.csv chiuso correttamente." << std::endl;
+                }
+                if (position_csv_file.is_open()) {
+                    position_csv_file.close();
+                    std::cout << "File positions_data.csv chiuso correttamente." << std::endl;
+                }
+
             }
 
             void Load(physics::ModelPtr _parent, sdf::ElementPtr _sdf);
@@ -51,8 +61,16 @@ namespace gazebo
 
         // Pointer to the model
         private: 
+            void open_forces_csv();            
+            void write_forces();
+            void open_positions_csv();
+            void write_positions();
+            
             ros::ServiceServer grasp_service;
             ros::NodeHandle ros_nh;
+            std::ofstream forces_csv_file;
+            std::ofstream position_csv_file;
+            std::chrono::steady_clock::time_point start_time;
 
             bool callbackGraspServer(   cable_model_pkg::GraspMsg::Request &rqst,
                                         cable_model_pkg::GraspMsg::Response &res

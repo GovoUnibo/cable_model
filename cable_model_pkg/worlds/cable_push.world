@@ -39,19 +39,19 @@
       <rot_z> 0.0 </rot_z>
       <mass> 0.03 </mass> -->
       <length> 1.5 </length> <!-- 1.5m -->
-      <width> 0.006 </width> <!-- 8mm -->
+      <width> 0.01 </width> <!-- 8mm -->
       <pos_x> -0.7 </pos_x>
       <pos_y> 0.0 </pos_y>
       <pos_z> 0.3 </pos_z>
       <rot_x> 0.0 </rot_x>
       <rot_y> 0.0 </rot_y>
       <rot_z> 0.0 </rot_z>
-      <mass> 0.03 </mass> <!-- 30g -->
+      <mass> 0.05 </mass> <!-- 30g -->
       <gravity> 1 </gravity>
       <damping> 0.3 </damping> <!-- 2*sqrt(stifness) -->  <!-- 2 -->
       <poisson_ratio>0.3</poisson_ratio>
-      <young_modulus>126000000</young_modulus> <!--126MPa-->
-      <cable_masses> 15 </cable_masses> <!-- number of masses 40-->
+      <young_modulus>726000000</young_modulus> <!--126MPa-->
+      <cable_masses> 10 </cable_masses> <!-- number of masses 40-->
       <mass_name_prefix>mass_</mass_name_prefix>
     </plugin>
     

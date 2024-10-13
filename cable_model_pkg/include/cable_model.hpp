@@ -69,6 +69,7 @@ namespace cable_utils {
             const gazebo::physics::LinkPtr getLink(int i);
             int getResolution();
             ignition::math::Vector3d getForceWrtWorld(int);
+            ignition::math::Vector3d getPositionWrtWorld(int);
             void updateModel();
             void updateModel(bool isFirstMassGrasped, bool isLastMassGrasped);
 

@@ -69,6 +69,7 @@ ignition::math::Vector3d Cable::getParticlesRelativePos(int i, int j) {     retu
 ignition::math::Vector3d Cable::tripleCross(ignition::math::Vector3d u1, ignition::math::Vector3d u2, ignition::math::Vector3d u3) {    return u1.Cross(u2.Cross(u3));}
 
 ignition::math::Vector3d Cable::getForceWrtWorld(int i){    return this->cable_masses[i].getForce();}
+ignition::math::Vector3d Cable::getPositionWrtWorld(int i){    return this->cable_masses[i].getAbsolutePosition();}
 
 void Cable::setFirstMassFixed(bool is_fixed){  cable_masses[0].setFixed(is_fixed); }
 void Cable::setLastMassFixed(bool is_fixed){  cable_masses[num_masses-1].setFixed(is_fixed); }
@@ -103,7 +104,7 @@ void Cable::updateModel(){
     MassSpringDamping::computeDampingForces();
     // MassSpringDamping::computeInertiaForces(); // gazebo le calcola automaticamente cout << cable_masses[2].getForce() << endl;
     // MassSpringDamping::evaluateGravity();
-    cout << cable_masses[2].getForce() << endl;
+    // cout << cable_masses[2].getForce() << endl;
 
     if (cable_masses[0].isFixed() || cable_masses[0].isGrasped())
         MassSpringDamping::addInitialConstrainSpring();

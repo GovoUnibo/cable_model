@@ -30,6 +30,7 @@ namespace sdf_sphere{
             void setSlip2(float slip2);
             void setTortionalFriction(float contact_depth=0.001);
 
+
             void addLink(std::string link_name, float mass, float radius, std::vector<float> pose);
 
             void addJoint(std::string parent, std::string child, sdf_builder::TypeOfJoint type, std::vector<int> axis);

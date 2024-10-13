@@ -231,10 +231,22 @@ string SdfBuilder::getCollision(int index_link=0)
             close_collision;
 
 }
+
+string SdfBuilder::getMaterial()
+{
+    return string("<material>\n") +
+            "<ambient>1 0 0 1</ambient>\n"   // Full red for ambient
+            "<diffuse>1 0 0 1</diffuse>\n"   // Full red for diffuse
+            "<specular>0 0 0 0</specular>\n"
+            "<emissive>0 0 0 1</emissive>\n"
+            "</material>\n";
+}
+
 string SdfBuilder::getVisual(int index_link=0)
 {
     return  open_visual +
             getGeometry(index_link) +
+            getMaterial() +
             close_visual;        
 }
 

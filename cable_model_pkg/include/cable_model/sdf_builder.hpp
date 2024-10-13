@@ -98,6 +98,7 @@ enum TypeOfJoint{fixed, revolute, prismatic, gearbox, revolute2, ball, universal
         std::string getInertial(int index_link);
         std::string getCollision(int index_link);
         std::string getVisual(int index_link);
+        std::string getMaterial();
         std::string getLinkPose(int index_link);
         std::string getSelfCollision(int index_link);
         const bool modelHasJoint();
