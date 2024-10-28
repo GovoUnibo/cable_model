@@ -11,10 +11,11 @@ using namespace cable_utils;
 #define RESET "\033[0m"
 #define ORANGE "\033[38;5;214m"
 
-void CableModelPlugin::open_forces_csv(){
+void CableModelPlugin::open_forces_csv(std::string folder_path){
     // Apri file CSV per scrivere le forze
     this->start_time = std::chrono::steady_clock::now();
-    forces_csv_file.open("/home/andrea/forces_data.csv", std::ios::out);
+    std::string file_path = folder_path + "forces_data.csv";
+    forces_csv_file.open(file_path, std::ios::out);
     if (!forces_csv_file.is_open()) {
         std::cerr << "Errore: impossibile aprire il file forces_data.csv!" << std::endl;
         exit(0);  // Puoi decidere di uscire dalla funzione o lanciare un'eccezione
@@ -31,10 +32,11 @@ void CableModelPlugin::open_forces_csv(){
 }
 
 
-void CableModelPlugin::open_positions_csv() {
+void CableModelPlugin::open_positions_csv(std::string folder_path) {
     // Apri file CSV per scrivere le posizioni
     this->start_time = std::chrono::steady_clock::now();
-    position_csv_file.open("/home/andrea/positions_data.csv", std::ios::out);
+    std::string file_path= folder_path  + "positions_data.csv";
+    position_csv_file.open(file_path, std::ios::out);
     if (!position_csv_file.is_open()) {
         std::cerr << "Errore: impossibile aprire il file positions_data.csv!" << std::endl;
         exit(0);  // Puoi decidere di uscire dalla funzione o lanciare un'eccezione
@@ -97,8 +99,8 @@ void CableModelPlugin::Load(physics::ModelPtr _parent, sdf::ElementPtr _sdf){
 
     // Listen to the update event. This event is broadcast every
     // simulation iteration.
-    this-> open_forces_csv();
-    this-> open_positions_csv();
+    
+    
     this->updateConnection = event::Events::ConnectWorldUpdateBegin(
             std::bind(&CableModelPlugin::OnUpdate, this));
 
@@ -108,6 +110,10 @@ void CableModelPlugin::Load(physics::ModelPtr _parent, sdf::ElementPtr _sdf){
         ros::init(argc, argv, "cable_plugin_client",
             ros::init_options::NoSigintHandler);
     }
+    std::string package_path = ros::package::getPath("cable_model_pkg");
+    // this-> open_forces_csv(package_path + "/data/");
+    this-> open_positions_csv(package_path + "/data/");
+
   publish_force_mass_0 = ros_nh.advertise<cable_model_pkg::coordinates>("/force_mass_0", 1);
 
 }
@@ -135,7 +141,7 @@ void CableModelPlugin::OnUpdate(){
     // t0 = t;
 
 
-    this->write_forces();
+    // this->write_forces();
     this->write_positions();
     
 

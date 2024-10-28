@@ -14,7 +14,7 @@
     <physics name='default_physics' default='0' type='ode'>
       <!--  the max step size is set to 0.001 by default. -->
       <!--  When increasing it, the simulation quality may suffer. -->
-            <max_step_size>0.0002</max_step_size> <!--determining the time in the simulation (in s) to be simulated in one step. --> <!-- 0.0002, 0.00007-->
+            <max_step_size>0.00001</max_step_size> <!--determining the time in the simulation (in s) to be simulated in one step. --> <!-- 0.0002, 0.00007-->
       
             <!-- sets an upper bound of real_time_factor If real_time_factor < 1 the simulation is slower than real time -->
             <!-- <real_time_factor>0.5</real_time_factor> -->
@@ -48,9 +48,9 @@
       <rot_z> 0.0 </rot_z>
       <mass> 0.05 </mass> <!-- 30g -->
       <gravity> 1 </gravity>
-      <damping> 0.3 </damping> <!-- 2*sqrt(stifness) -->  <!-- 2 -->
-      <poisson_ratio>0.3</poisson_ratio>
-      <young_modulus>726000000</young_modulus> <!--126MPa-->
+      <damping> 0.1 </damping> <!-- 2*sqrt(stifness) -->  <!-- 2 -->
+      <poisson_ratio>0.2</poisson_ratio>
+      <young_modulus>262000000</young_modulus> <!-- 0.126Mpa = 126000, 126Mpa=126000000, 22Mpa = 22000000 , 87.5Mpa = 87500000, 153,12MPa = 153120000 262,38MPa = 262380000 350Mpa = 350000000 -->
       <cable_masses> 10 </cable_masses> <!-- number of masses 40-->
       <mass_name_prefix>mass_</mass_name_prefix>
     </plugin>

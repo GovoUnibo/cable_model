@@ -1,0 +1,26 @@
+{
+  "configurations": [
+    {
+      "browse": {
+        "databaseFilename": "${default}",
+        "limitSymbolsToIncludedHeaders": false
+      },
+      "includePath": [
+        "/home/andrea/cable_plots_ws/devel/include/**",
+        "/opt/ros/noetic/include/**",
+        "/home/andrea/cable_plots_ws/src/cable_model/cable_model_pkg/include/**",
+        "/home/andrea/cable_plots_ws/src/ur_tools/Universal_Robots_ROS_Driver/ur_calibration/include/**",
+        "/home/andrea/cable_plots_ws/src/ur_tools/Universal_Robots_Client_Library/include/**",
+        "/home/andrea/cable_plots_ws/src/ur_tools/ur_pers_lib_pkg/include/**",
+        "/home/andrea/cable_plots_ws/src/ur_tools/Universal_Robots_ROS_Driver/ur_robot_driver/include/**",
+        "/usr/include/**"
+      ],
+      "name": "ROS",
+      "intelliSenseMode": "gcc-x64",
+      "compilerPath": "/usr/bin/gcc",
+      "cStandard": "gnu11",
+      "cppStandard": "c++14"
+    }
+  ],
+  "version": 4
+}

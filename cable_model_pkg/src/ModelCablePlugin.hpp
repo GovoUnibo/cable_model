@@ -1,13 +1,13 @@
 #ifndef MODEL_CABLE_PLUGIN
 #define MODEL_CABLE_PLUGIN
 
-
 #include <functional>
 #include <gazebo/gazebo.hh>
 #include <gazebo/physics/physics.hh>
 #include <gazebo/common/common.hh>
 #include <ignition/math/Vector3.hh>
 #include <ros/ros.h>
+#include <ros/package.h>
 #include <iostream>
 #include <fstream>
 #include <chrono> 
@@ -61,9 +61,9 @@ namespace gazebo
 
         // Pointer to the model
         private: 
-            void open_forces_csv();            
+            void open_forces_csv(std::string);            
             void write_forces();
-            void open_positions_csv();
+            void open_positions_csv(std::string);
             void write_positions();
             
             ros::ServiceServer grasp_service;
