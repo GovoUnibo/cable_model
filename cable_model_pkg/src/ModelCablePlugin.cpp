@@ -164,6 +164,9 @@ void CableModelPlugin::OnUpdate(){
     if (this->isMass0Gripped) 
         cable->setMassPosition(0, mass_0_pos);
 
+    if (this->isMassNGripped)
+        cable->setMassPosition(this->num_particles - 1, mass_N_pos);
+
         
 
     cable->updateModel();
