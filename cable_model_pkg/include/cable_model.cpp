@@ -76,6 +76,13 @@ void Cable::setLastMassFixed(bool is_fixed){  cable_masses[num_masses-1].setFixe
 void Cable::setFirstMassGrasped(bool is_grasped){ cable_masses[0].setGrasped(is_grasped); }
 void Cable::setLastMassGrasped(bool is_grasped){ this->cable_masses[num_masses-1].setGrasped(is_grasped); }
 
+void Cable::setMassPosition(int i, ignition::math::Vector3d position){
+    this->cable_masses[i].updatePosition(ignition::math::Pose3d{position, ignition::math::Quaterniond{0, 0, 0, 1}});
+}
+
+bool Cable::isMassFix(int i){     return this->cable_masses[i].isFixed(); }
+bool Cable::isMassGrasped(int i){ return this->cable_masses[i].isGrasped(); }
+
 void Cable::updateModel(){
 
     // cable_masses[0].setFixed(true); //fissa prima massa
@@ -118,9 +125,6 @@ void Cable::updateModel(){
         cable_masses[i].updateForce(MassSpringDamping::getResultantForce(i));
         // cable_masses[i].updateTorque(MassSpringDamping::getTwistingForce(i));
     }
-
-
-
 
 }
 

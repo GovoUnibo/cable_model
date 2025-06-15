@@ -13,6 +13,7 @@
 #include <chrono> 
 #include <vector>
 #include <string>
+#include <geometry_msgs/Point.h>
 #include <cable_model.hpp>
 
 #include <cable_model_pkg/GraspMsg.h>
@@ -75,6 +76,9 @@ namespace gazebo
             bool callbackGraspServer(   cable_model_pkg::GraspMsg::Request &rqst,
                                         cable_model_pkg::GraspMsg::Response &res
                                     );
+            
+            void mass0PositionCallback(const geometry_msgs::Point::ConstPtr& msg);
+            void massNPositionCallback(const geometry_msgs::Point::ConstPtr& msg);
 
 
             physics::ModelPtr model;
@@ -95,10 +99,17 @@ namespace gazebo
             CablePtr cable;
 
             ros::Publisher publish_force_mass_0;
+            ros::Subscriber sub_mass0_pos;
+            ros::Subscriber sub_massN_pos;
 
             ignition::math::Vector3d force_mass_0;
             cable_model_pkg::coordinates force_mass_0_msg;
 
+
+            ignition::math::Vector3d mass_0_pos;
+            ignition::math::Vector3d mass_N_pos;
+            bool isMass0Gripped = false;
+            bool isMassNGripped = false;
     };
 
     // Register this plugin with the simulator

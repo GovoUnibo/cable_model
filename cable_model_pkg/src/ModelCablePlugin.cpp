@@ -112,17 +112,29 @@ void CableModelPlugin::Load(physics::ModelPtr _parent, sdf::ElementPtr _sdf){
     }
     std::string package_path = ros::package::getPath("cable_model_pkg");
     // this-> open_forces_csv(package_path + "/data/");
-    this-> open_positions_csv(package_path + "/data/");
+    // this-> open_positions_csv(package_path + "/data/");
 
-  publish_force_mass_0 = ros_nh.advertise<cable_model_pkg::coordinates>("/force_mass_0", 1);
+//   publish_force_mass_0 = ros_nh.advertise<cable_model_pkg::coordinates>("/force_mass_0", 1);
 
+    this->sub_mass0_pos = ros_nh.subscribe("/mass0/position", 1, &CableModelPlugin::mass0PositionCallback, this);
+    this->sub_massN_pos = ros_nh.subscribe("/massN/position", 1, &CableModelPlugin::massNPositionCallback, this);
+
+    this->mass_0_pos = this->cable->getPositionWrtWorld(0); // Inizializza la posizione della massa 0
+}
+
+void CableModelPlugin::mass0PositionCallback(const geometry_msgs::Point::ConstPtr& msg) {
+    this->mass_0_pos = ignition::math::Vector3d(msg->x, msg->y, msg->z);
+    // std::cout << "Mass 0 position updated: " << this->mass_0_pos << std::endl;
+}
+
+// Callback per massa n-1
+void CableModelPlugin::massNPositionCallback(const geometry_msgs::Point::ConstPtr& msg) {
+    this->mass_N_pos = ignition::math::Vector3d(msg->x, msg->y, msg->z);
 }
 
 bool CableModelPlugin::callbackGraspServer(cable_model_pkg::GraspMsg::Request &rqst, cable_model_pkg::GraspMsg::Response &res){
-                            cable->setFirstMassGrasped(rqst.set_mass0_grasped);
-                            cable->setLastMassGrasped(rqst.set_massN_grasped);
-                            cable->setFirstMassFixed(rqst.set_mass0_fixed);
-                            cable->setLastMassFixed(rqst.set_massN_fixed);
+                            this->isMass0Gripped = rqst.grasp_mass_0;
+                            this->isMassNGripped = rqst.grasp_mass_N;
                             return true;
                         }
                         
@@ -142,15 +154,23 @@ void CableModelPlugin::OnUpdate(){
 
 
     // this->write_forces();
-    this->write_positions();
+    // this->write_positions();
+    // update_0_mass_position of 1 mm usando una sinusoidale
+
+    // ignition::math::Vector3d new_pos = cable->getPositionWrtWorld(0);
+    // new_pos.X() += 0.004 * sin(std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start_time).count() / 500.0); // Aggiungi un piccolo offset alla posizione X della massa 0
+    // printa la mass pos 
     
+    if (this->isMass0Gripped) 
+        cable->setMassPosition(0, mass_0_pos);
+
+        
 
     cable->updateModel();
 
 }
 
 void CableModelPlugin::write_forces(){
-    // Ottieni il tempo corrente
     auto now = std::chrono::steady_clock::now();
     auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - start_time).count();
 

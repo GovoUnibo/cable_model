@@ -71,12 +71,16 @@ namespace cable_utils {
             ignition::math::Vector3d getForceWrtWorld(int);
             ignition::math::Vector3d getPositionWrtWorld(int);
             void updateModel();
-            void updateModel(bool isFirstMassGrasped, bool isLastMassGrasped);
+            bool isMassFix(int);
+            bool isMassGrasped(int);
+            
 
             void setFirstMassGrasped(bool is_grasped);
             void setLastMassGrasped(bool is_grasped);
             void setFirstMassFixed(bool is_fixed);
             void setLastMassFixed(bool is_fixed);
+
+            void setMassPosition(int i, ignition::math::Vector3d position);
             
             
     };
