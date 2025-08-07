@@ -73,11 +73,13 @@ catkin_package(
 add_library(cable_push SHARED src/WorldCablePlugin.cpp  src/WorldCablePlugin.hpp
                         include/cable_model/sdf_builder.cpp       include/cable_model/sdf_builder.hpp
                         include/cable_model/sdf_sphere.cpp       include/cable_model/sdf_sphere.hpp
+                        include/cable_model/sdf_cylinder.cpp     include/cable_model/sdf_cylinder.hpp
                   )
 target_link_libraries(cable_push PUBLIC ${catkin_LIBRARIES} ${GAZEBO_LIBRARIES})
 
 
 add_library(model_push SHARED src/ModelCablePlugin.cpp src/ModelCablePlugin.hpp
+                              include/csv_exporter.cpp include/csv_exporter.hpp
                               include/cable_dynamics.cpp include/cable_dynamics.hpp
                               include/cable_model.cpp include/cable_model.hpp  
                               include/cable_masses.cpp include/cable_masses.hpp                          

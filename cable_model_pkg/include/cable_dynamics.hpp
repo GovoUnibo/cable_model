@@ -31,9 +31,11 @@ namespace cable_dynamics //si usa solitamente il nome del pacchetto dentro cui Ã
             void setDamperCoef(float K_d);
             void setYoungModulus(double young_modulus);
             void setPoissonRatio(double poisson_ratio);
+            void setTorsionDamperCoef(float K_t);
             
             void updateMassAcceleration(ignition::math::Vector3d acc, int i);
             void updateMassVelocity(ignition::math::Vector3d velocity, int i);
+            void updateAngularVelocity(ignition::math::Vector3d angular_velocity, int i);
             void setMassInitialPosition(ignition::math::Vector3d position, int i);
             void updateMassPosition(ignition::math::Vector3d position, int i);
 
@@ -46,8 +48,8 @@ namespace cable_dynamics //si usa solitamente il nome del pacchetto dentro cui Ã
             void addInitialConstrainSpring();
             void addFinalConstrainSpring();
             ignition::math::Vector3d getResultantForce(int i);
-            ignition::math::Vector3d getTwistingForce(int i);
-            void updateCableTwist(ignition::math::Vector3d, ignition::math::Vector3d);
+            ignition::math::Vector3d getTwistingTorque(int i);
+            void updateCableTwist(const ignition::math::Quaterniond&, const ignition::math::Quaterniond&);
 
             int num_of_masses, num_of_links;
         
@@ -64,6 +66,8 @@ namespace cable_dynamics //si usa solitamente il nome del pacchetto dentro cui Ã
             void twistingSpringForces();
             void linearSpringForces();
             void bendingSpringForces();
+
+            
             
 
             void setLinearElasticCoef(double length);
@@ -81,7 +85,7 @@ namespace cable_dynamics //si usa solitamente il nome del pacchetto dentro cui Ã
                                                         ignition::math::Vector3d u3);
             double getBeta(ignition::math::Vector3d link_vec, ignition::math::Vector3d fixed_vec) ;
 
-            std::vector<ignition::math::Vector3d> relative_velocities, mass_velocities, mass_accelerations;
+            std::vector<ignition::math::Vector3d> relative_velocities, mass_velocities, mass_accelerations, mass_angular_velocities;
             std::vector<ignition::math::Vector3d> damping_forces, inertia_forces;
             ignition::math::Vector3d material_twisting_angle;
 
@@ -102,6 +106,7 @@ namespace cable_dynamics //si usa solitamente il nome del pacchetto dentro cui Ã
             float twisting_spring;
             float damping_factor;
             float constrain_spring;
+            float torsion_damper;
             std::vector<double> link_displacement; //l_i
             std::vector<float> beta, psi;
 

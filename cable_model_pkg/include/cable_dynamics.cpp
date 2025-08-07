@@ -31,6 +31,7 @@ MassSpringDamping::MassSpringDamping(int num_of_masses, float cable_length, floa
 
 
     this->mass_velocities.resize(this->num_of_masses);
+    this->mass_angular_velocities.resize(this->num_of_masses);
     this->mass_accelerations.resize(this->num_of_masses);
     this->mass_positions.resize(this->num_of_masses);
     this->mass_initial_positions.resize(this->num_of_masses);
@@ -100,18 +101,23 @@ void MassSpringDamping::setDamperCoef(float K_d){
     // this->damping_factor = 2*sqrt(this->linear_spring);
     }
 
+void MassSpringDamping::setTorsionDamperCoef(float K_t){
+    this->torsion_damper = K_t;
+    cout << "Torsion damper: " << this->torsion_damper << endl;
+}
 
-void MassSpringDamping::updateMassVelocity(ignition::math::Vector3d velocity, int i)    { this->mass_velocities[i]          = velocity; }
-void MassSpringDamping::updateMassAcceleration(ignition::math::Vector3d acc, int i)     { this->mass_accelerations[i]       = acc;      }
-void MassSpringDamping::setMassInitialPosition(ignition::math::Vector3d position, int i){ this->mass_initial_positions[i]   = position; }
-void MassSpringDamping::updateMassPosition(ignition::math::Vector3d position, int i)    { this->mass_positions[i]           = position; }
-// void MassSpringDamping::updateBeta(float beta_i, int i) { this->beta[i] = beta_i; }
+
+void MassSpringDamping::updateMassVelocity(ignition::math::Vector3d velocity, int i)            { this->mass_velocities[i]          = velocity; }
+void MassSpringDamping::updateAngularVelocity(ignition::math::Vector3d angular_velocity, int i) { this->mass_angular_velocities[i] = angular_velocity; }
+void MassSpringDamping::updateMassAcceleration(ignition::math::Vector3d acc, int i)             { this->mass_accelerations[i]       = acc;      }
+void MassSpringDamping::setMassInitialPosition(ignition::math::Vector3d position, int i)        { this->mass_initial_positions[i]   = position; }
+void MassSpringDamping::updateMassPosition(ignition::math::Vector3d position, int i)            { this->mass_positions[i]           = position; }
 
 
 void MassSpringDamping::computeSpringsForces(){
     this->linearSpringForces();
     this->bendingSpringForces();
-    this->twistingSpringForces();
+    this->twistingSpringForces(); // Re-enabled with reduced force scaling
 }
 void MassSpringDamping::computeInertiaForces(){ 
     for(int i=0; i<num_of_masses; i++)
@@ -154,9 +160,6 @@ void MassSpringDamping::computeDampingForces() {
         this->damping_forces[i]     += damping_force;
         this->damping_forces[i + 1] -= damping_force;
     }
-
-
-
     
 }
 
@@ -282,88 +285,118 @@ void MassSpringDamping::addFinalConstrainSpring()
     // this->linear_forces[num_of_masses - 1] = this->bending_forces[num_of_masses - 2];
 }
 
-void MassSpringDamping::updateCableTwist(ignition::math::Vector3d twist_angle_0, ignition::math::Vector3d twist_angle_n){
-    this->material_twisting_angle = twist_angle_n - twist_angle_0;
+
+void MassSpringDamping::updateCableTwist(
+    const ignition::math::Quaterniond& rot0,
+    const ignition::math::Quaterniond& rotn)
+{
+    // rot0 e rotn sono i quaternioni alle due estremità
+    ignition::math::Quaterniond q_rel = rot0.Inverse() * rotn;
+
+    // --- estrai asse e angolo con ToAxis() ---
+    ignition::math::Vector3d axis;
+    double angle;
+    q_rel.ToAxis(axis, angle);  // -> axis (unitario), angle (rad) :contentReference[oaicite:0]{index=0}
+
+    // salva la torsione materiale come vettore axis*angle
+    this->material_twisting_angle = axis * angle;
+
 }
 
 
-void MassSpringDamping::updatePsi(){
-    ignition::math::Vector3d a,b;
-    float phi, theta;
-    
-    theta = 0; // = this->material_twisting_angle.Length() / this->num_of_masses; // Da calcolare
-    // cout << "theta: " << theta << endl;
+
+void MassSpringDamping::updatePsi() {
+    // Assicurati che beta (bending angles) sia aggiornato
+    this->updateBeta();
+
+    // Calcola torsione materiale distribuita
+    double total_twist = this->material_twisting_angle.Length();
+    double theta = total_twist / this->num_of_links;  // Eq.(11)
+
+    // Estrema: niente torsione geometrica
     this->psi[0] = theta;
-    // a = this->getLinkLength(1).Cross(this->getLinkLength(1));
-    // b = this->getLinkLength(1).Cross(this->getLinkLength(2).Cross(this->getLinkLength(1)));
-    // phi = atan(a.Cross(b).Length() / a.Dot(b));
-    
-    this->psi[1] = theta;
-    for (int i=2; i<this->num_of_masses-1; i++){
-        a = tripleCross(getLinkLength(i), getLinkLength(i), getLinkLength(i-1)); // this->getLinkLength(i).Cross(this->getLinkLength(i).Cross(this->getLinkLength(i-1)));
-        b = tripleCross(getLinkLength(i), getLinkLength(i+1), getLinkLength(i));  // this->getLinkLength(i).Cross(this->getLinkLength(i+1).Cross(this->getLinkLength(i)));
-        phi = atan(a.Cross(b).Length() / a.Dot(b));
-        
-        // phi = 0;
-        // cout << "phi"<< i << ": " << phi << endl;
-        this->psi[i] = phi + theta;
-    }
+    this->psi[this->num_of_masses - 1] = theta;
 
-    a = this->tripleCross(getLinkLength(num_of_masses-1), getLinkLength(num_of_masses-1), getLinkLength(num_of_masses-2));
-    b = this->getLinkLength(num_of_masses-1).Cross(this->getLinkLength(num_of_masses-1));
-    phi = atan(a.Cross(b).Length() / a.Dot(b));
-    this->psi[num_of_masses-1] = phi + theta;
+    // Interni: phi + theta
+    for (int i = 1; i < this->num_of_masses - 1; ++i) {
+        // Calcola φᵢ = arctan(|a×b| / (a·b)), con a = uᵢ×(uᵢ×uᵢ₋₁), b = uᵢ×(uᵢ₊₁×uᵢ)
+        auto a = this->tripleCross(i, i, i-1);
+        auto b = this->tripleCross(i, i+1, i);
+        double phi = atan(a.Cross(b).Length() / a.Dot(b));  // Eq.(8)
+
+        this->psi[i] = phi + theta;  // Eq.(7)
+    }
 }
 
-void MassSpringDamping::twistingSpringForces(){
+
+// file: cable_dynamics.cpp
+
+void MassSpringDamping::twistingSpringForces() {
+    // 1) Aggiorna torsioni geometriche e materiale
     this->updatePsi();
-    this->twisting_forces[0] = 0;
-    // this->twisting_forces[0]    = ( (this->twisting_spring * this->psi[0] ) / (this->getLinkLength(1).Length() * sin(this->beta[0])) ) * (this->getUnitVersor(0).Cross(this->getUnitVersor(1)) / sin(this->beta[0]))
-    //                             + ( (this->twisting_spring * this->psi[0] ) / (this->getLinkLength(0).Length() * tan(this->beta[0])) ) * (this->getUnitVersor(0).Cross(this->getUnitVersor(1)) / sin(this->beta[0]))
-    //                             - ( (this->twisting_spring * this->psi[1] ) / (this->getLinkLength(1).Length() * sin(this->beta[1])) ) * (this->getUnitVersor(0).Cross(this->getUnitVersor(1)) / sin(this->beta[0])   )
-    //                             - ( (this->twisting_spring * this->psi[1] ) / (this->getLinkLength(1).Length() * tan(this->beta[0])) ) * (this->getUnitVersor(0).Cross(this->getUnitVersor(1)) / sin(this->beta[0])   )
-    //                             - ( (this->twisting_spring * this->psi[1] ) / (this->getLinkLength(1).Length() * tan(this->beta[1])) ) * (this->getUnitVersor(1).Cross(this->getUnitVersor(2)) / sin(this->beta[1]) )
-    //                             + ( (this->twisting_spring * this->psi[2] ) / (this->getLinkLength(1).Length() * sin(this->beta[1])) ) * (this->getUnitVersor(1).Cross(this->getUnitVersor(2)) / sin(this->beta[1]) );
-//    this->twisting_forces[1] =         ( (this->twisting_spring * this->psi[1]   ) / (this->getLinkLength(1+1).Length() * sin(this->beta[1]))   ) * (this->getUnitVersor(1).Cross(this->getUnitVersor(1+1))   / sin(this->beta[1])   )
-//                                     + ( (this->twisting_spring * this->psi[1]   ) / (this->getLinkLength(1).Length()   * tan(this->beta[1]))   ) * (this->getUnitVersor(1).Cross(this->getUnitVersor(1+1))   / sin(this->beta[1])   )
-//                                     - ( (this->twisting_spring * this->psi[1+1] ) / (this->getLinkLength(1).Length()   * sin(this->beta[1]))   ) * (this->getUnitVersor(1).Cross(this->getUnitVersor(1+1))   / sin(this->beta[1])   )
-//                                     - ( (this->twisting_spring * this->psi[1+1] ) / (this->getLinkLength(1+1).Length() * tan(this->beta[1]))   ) * (this->getUnitVersor(1).Cross(this->getUnitVersor(1+1))   / sin(this->beta[1])   )
-//                                     - ( (this->twisting_spring * this->psi[1+1] ) / (this->getLinkLength(1+1).Length() * tan(this->beta[1+1])) ) * (this->getUnitVersor(1+1).Cross(this->getUnitVersor(1+2)) / sin(this->beta[1+1]) )
-//                                     + ( (this->twisting_spring * this->psi[1+2] ) / (this->getLinkLength(1+1).Length() * sin(this->beta[1+1])) ) * (this->getUnitVersor(1+1).Cross(this->getUnitVersor(1+2)) / sin(this->beta[1+1]) ); 
 
-    for(int i=2; i<this->num_of_masses-2; i++){
-        // cout << this->psi[i] << endl;
-        this->twisting_forces[i] =  - ( (this->twisting_spring * this->psi[i-1] ) / (this->getLinkLength(i).Length()   * sin(this->beta[i-1])) ) * (this->getUnitVersor(i-1).Cross(this->getUnitVersor(i))   / sin(this->beta[i-1]) )
-                                    + ( (this->twisting_spring * this->psi[i]   ) / (this->getLinkLength(i+1).Length() * sin(this->beta[i]))   ) * (this->getUnitVersor(i).Cross(this->getUnitVersor(i+1))   / sin(this->beta[i])   )
-                                    + ( (this->twisting_spring * this->psi[i]   ) / (this->getLinkLength(i).Length()   * tan(this->beta[i]))   ) * (this->getUnitVersor(i).Cross(this->getUnitVersor(i+1))   / sin(this->beta[i])   )
-                                    + ( (this->twisting_spring * this->psi[i]   ) / (this->getLinkLength(i).Length()   * tan(this->beta[i-1])) ) * (this->getUnitVersor(i-1).Cross(this->getUnitVersor(i))   / sin(this->beta[i-1]) )
-                                    - ( (this->twisting_spring * this->psi[i+1] ) / (this->getLinkLength(i).Length()   * sin(this->beta[i]))   ) * (this->getUnitVersor(i).Cross(this->getUnitVersor(i+1))   / sin(this->beta[i])   )
-                                    - ( (this->twisting_spring * this->psi[i+1] ) / (this->getLinkLength(i+1).Length() * tan(this->beta[i]))   ) * (this->getUnitVersor(i).Cross(this->getUnitVersor(i+1))   / sin(this->beta[i])   )
-                                    - ( (this->twisting_spring * this->psi[i+1] ) / (this->getLinkLength(i+1).Length() * tan(this->beta[i+1])) ) * (this->getUnitVersor(i+1).Cross(this->getUnitVersor(i+2)) / sin(this->beta[i+1]) )
-                                    + ( (this->twisting_spring * this->psi[i+2] ) / (this->getLinkLength(i+1).Length() * sin(this->beta[i+1])) ) * (this->getUnitVersor(i+1).Cross(this->getUnitVersor(i+2)) / sin(this->beta[i+1]) );
+    // 2) Cattura in alias i membri per accesso rapido
+    auto& betaVec    = this->beta;
+    auto& psiVec     = this->psi;
+    auto& omegas     = this->mass_angular_velocities;
+    auto& outTorques = this->twisting_forces;
+    const double kt  = this->twisting_spring;
+    const double td  = this->torsion_damper;
+    const int    N   = this->num_of_masses;
+
+    // 3) Azzeramento (resta necessario)
+    for (int i = 0; i < N; ++i)
+        outTorques[i] = ignition::math::Vector3d::Zero;
+
+    // 4) Loop principale
+    for (int i = 1; i < N - 1; ++i) {
+        // 4.1) Preleva una sola volta le quantità scalari
+        double li      = this->getLinkLength(i).Length();
+        double bi      = betaVec[i];
+        double psi_im1 = psiVec[i - 1];
+        double psi_i   = psiVec[i];
+        double psi_ip1 = psiVec[i + 1];
+
+        // 4.2) Guard ε per sinβ, tanβ
+        double sinb = sin(bi);
+        if (fabs(sinb) < 1e-6) sinb = copysign(1e-6, sinb);
+        double tanb = tan(bi);
+        if (fabs(tanb) < 1e-6) tanb = copysign(1e-6, tanb);
+
+        // 4.3) Pre-calcola i vettori di tripleCross
+        auto c1 = this->tripleCross(i - 1, i - 1, i);
+        auto c2 = this->tripleCross(i,     i,     i + 1);
+        auto c3 = this->tripleCross(i,     i + 1, i + 1);
+
+        // 4.4) Termini elastici (Eq.12)
+        //    kt * psi_im1/(li*sinb^2) * c1
+        //  + kt * psi_i  /(li*tanb*sinb) * c2
+        //  - kt * psi_ip1/(li*sinb^2) * c2
+        //  - kt * psi_ip1/(li*tanb*sinb) * c3
+        ignition::math::Vector3d torque_elastic =
+            c1 * ( kt * psi_im1 / (li * sinb * sinb) )
+          + c2 * ( kt * psi_i   / (li * tanb * sinb) )
+          - c2 * ( kt * psi_ip1 / (li * sinb * sinb) )
+          - c3 * ( kt * psi_ip1 / (li * tanb * sinb) );
+
+        // 4.5) Damping torsionale
+        auto& wi   = omegas[i];
+        auto& wip1 = omegas[i + 1];
+        auto  axis = this->getUnitVersor(i);
+        double relVel = (wip1 - wi).Dot(axis);
+        ignition::math::Vector3d torque_damping = axis * (-td * relVel);
+
+        // 4.6) Somma, correzione
+        outTorques[i] = torque_elastic + torque_damping;
+        outTorques[i].Correct();
     }
-
-    // this->twisting_forces[this->num_of_masses-2] =  - ( (this->twisting_spring * this->psi[this->num_of_masses - 3] ) / (this->getLinkLength(this->num_of_masses - 2).Length() * sin(this->beta[this->num_of_masses - 3])) ) * (this->getUnitVersor(this->num_of_masses - 3).Cross(this->getUnitVersor(this->num_of_masses -  2)) / sin(this->beta[this->num_of_masses - 3]) )
-    //                                                 + ( (this->twisting_spring * this->psi[this->num_of_masses - 2] ) / (this->getLinkLength(this->num_of_masses - 1).Length() * sin(this->beta[this->num_of_masses - 2])) ) * (this->getUnitVersor(this->num_of_masses - 2).Cross(this->getUnitVersor(this->num_of_masses -  1)) / sin(this->beta[this->num_of_masses - 2]) )
-    //                                                 + ( (this->twisting_spring * this->psi[this->num_of_masses - 2] ) / (this->getLinkLength(this->num_of_masses - 2).Length() * tan(this->beta[this->num_of_masses - 2])) ) * (this->getUnitVersor(this->num_of_masses - 2).Cross(this->getUnitVersor(this->num_of_masses -  1)) / sin(this->beta[this->num_of_masses - 2]) )
-    //                                                 + ( (this->twisting_spring * this->psi[this->num_of_masses - 2] ) / (this->getLinkLength(this->num_of_masses - 2).Length() * tan(this->beta[this->num_of_masses - 3])) ) * (this->getUnitVersor(this->num_of_masses - 3).Cross(this->getUnitVersor(this->num_of_masses -  2)) / sin(this->beta[this->num_of_masses - 3]) )
-    //                                                 - ( (this->twisting_spring * this->psi[this->num_of_masses - 1] ) / (this->getLinkLength(this->num_of_masses - 2).Length() * sin(this->beta[this->num_of_masses - 2])) ) * (this->getUnitVersor(this->num_of_masses - 2).Cross(this->getUnitVersor(this->num_of_masses -  1)) / sin(this->beta[this->num_of_masses - 2]) )
-    //                                                 - ( (this->twisting_spring * this->psi[this->num_of_masses - 1] ) / (this->getLinkLength(this->num_of_masses - 1).Length() * tan(this->beta[this->num_of_masses - 2])) ) * (this->getUnitVersor(this->num_of_masses - 2).Cross(this->getUnitVersor(this->num_of_masses -  1)) / sin(this->beta[this->num_of_masses - 2]) );
-                                                    
-
-                                                    
-    // this->twisting_forces[this->num_of_masses-1] = - ( (this->twisting_spring * this->psi[this->num_of_masses - 2] ) / (this->getLinkLength(this->num_of_masses - 1).Length() * sin(this->beta[this->num_of_masses - 2])) ) * (this->getUnitVersor(this->num_of_masses - 2).Cross(this->getUnitVersor(this->num_of_masses - 1)) / sin(this->beta[this->num_of_masses - 2]) )
-    //                                                + ( (this->twisting_spring * this->psi[this->num_of_masses - 1]  ) / (this->getLinkLength(this->num_of_masses - 1).Length() * tan(this->beta[this->num_of_masses - 2])) ) * (this->getUnitVersor(this->num_of_masses - 2).Cross(this->getUnitVersor(this->num_of_masses - 1)) / sin(this->beta[this->num_of_masses - 2]) );
-
-    for(int i=0; i<this->num_of_masses; i++){
-        if (!this->bending_forces[i].IsFinite()) this->twisting_forces[i] = 0; //*See if a point is finite (e.g., not nan)
-        this->twisting_forces[i].Correct();
-    }
-
 }
 
-ignition::math::Vector3d MassSpringDamping::getTwistingForce(int i){ // Torque is a twisting or turning force 
-    // cout << "Twisting force " << i << ": "   << endl;
+
+
+
+
+ignition::math::Vector3d MassSpringDamping::getTwistingTorque(int i){ // Torque is a twisting or turning force 
     return this->twisting_forces[i];
 }
 
@@ -373,17 +406,8 @@ void MassSpringDamping::evaluateGravity()
 }
 
 ignition::math::Vector3d MassSpringDamping::getResultantForce(int i) {
-    // cout << "Damping force " << i << ": " << this->damping_forces[i] << endl;
-    // cout << "Linear force " << "0" << ": " << linear_forces[0] << endl;
-    // cout << "Bending force " << i << ": " << this->bending_forces[i] << endl;
-    // cout << "Twisting force " << i << ": " << this->twisting_forces[i] << endl;
-    // cout << "Result Forces" << i << ": " << this->damping_forces[i] + linear_forces[i] + this->bending_forces[i] /*+ this->twisting_forces[i]*/ << endl;
-    // cout << "Result Forces" << " 0" << ": " << this->damping_forces[0] + linear_forces[0] + this->bending_forces[0] /*+ this->twisting_forces[i]*/ << endl;
-    // cout << "Result Forces" << " 8" << ": " << this->damping_forces[8] + linear_forces[8] + this->bending_forces[8] /*+ this->twisting_forces[i]*/ << endl;
-    // cout << "Gravity" << ": " << this->gravity_forces << endl;
-    // cout << "Intertia Forces " << i << ": " << this->inertia_forces[i] << endl;
-    return this->inertia_forces[i] + linear_forces[i] + this->damping_forces[i] + this->bending_forces[i] + this->gravity_forces;//+ this->twisting_forces[i]/1000000;
-
+    // Re-enabled twisting forces with moderate scaling for stability
+    return this->inertia_forces[i] + linear_forces[i] + this->damping_forces[i] + this->bending_forces[i] + this->gravity_forces;
 }
 
 

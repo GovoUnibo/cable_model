@@ -106,6 +106,7 @@ enum TypeOfJoint{fixed, revolute, prismatic, gearbox, revolute2, ball, universal
         std::string getJoints();
         std::string getLinkName(int index_link);
         std::string getGravity(int i);
+        int getNumOfLinks();
 
         std::string getPlugin();
 

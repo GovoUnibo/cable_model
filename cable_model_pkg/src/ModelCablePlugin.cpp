@@ -1,4 +1,5 @@
 #include "ModelCablePlugin.hpp"
+#include <geometry_msgs/Pose.h>
 
 using namespace gazebo;
 using namespace std;
@@ -59,7 +60,7 @@ void CableModelPlugin::Load(physics::ModelPtr _parent, sdf::ElementPtr _sdf){
     // Store the pointer to the model
     this->model = _parent;
 
-    double poisson_ratio, young_modulus, damping; 
+    double poisson_ratio, young_modulus, damping, torsion_damper;
 
     std::vector<double> pos;
     std::vector<double> rot;
@@ -71,6 +72,7 @@ void CableModelPlugin::Load(physics::ModelPtr _parent, sdf::ElementPtr _sdf){
     ros_nh.getParam("/cable/position", pos);
     ros_nh.getParam("/cable/mass", this->mass);
     ros_nh.getParam("/cable/damping", damping);
+    ros_nh.getParam("/cable/torsion_damper", torsion_damper);
     ros_nh.getParam("/cable/gravity", this->gravity);
     ros_nh.getParam("/cable/num_particles", this->num_particles);
     ros_nh.getParam("/cable/prefix_mass_names", this->prefix_mass_names);
@@ -94,6 +96,7 @@ void CableModelPlugin::Load(physics::ModelPtr _parent, sdf::ElementPtr _sdf){
     cable->setDamperCoef(damping);
     cable->setYoungModulus(young_modulus);
     cable->setPoissonRatio(poisson_ratio);
+    cable->setTorsionDamperCoef(0);
     // cout << link->RelativePose().Pos().X() << endl;
 
 
@@ -111,69 +114,74 @@ void CableModelPlugin::Load(physics::ModelPtr _parent, sdf::ElementPtr _sdf){
             ros::init_options::NoSigintHandler);
     }
     std::string package_path = ros::package::getPath("cable_model_pkg");
-    // this-> open_forces_csv(package_path + "/data/");
-    // this-> open_positions_csv(package_path + "/data/");
 
-//   publish_force_mass_0 = ros_nh.advertise<cable_model_pkg::coordinates>("/force_mass_0", 1);
 
-    this->sub_mass0_pos = ros_nh.subscribe("/mass0/position", 1, &CableModelPlugin::mass0PositionCallback, this);
-    this->sub_massN_pos = ros_nh.subscribe("/massN/position", 1, &CableModelPlugin::massNPositionCallback, this);
+    this->sub_mass0_coords = ros_nh.subscribe("/mass0/pose", 1, &CableModelPlugin::robot1PoseCallback, this);
+    this->sub_massN_coords = ros_nh.subscribe("/massN/pose", 1, &CableModelPlugin::robot2PoseCallback, this);
 
-    this->mass_0_pos = this->cable->getPositionWrtWorld(0); // Inizializza la posizione della massa 0
+
+    this->simulation_start_time = std::chrono::steady_clock::now();
 }
 
-void CableModelPlugin::mass0PositionCallback(const geometry_msgs::Point::ConstPtr& msg) {
-    this->mass_0_pos = ignition::math::Vector3d(msg->x, msg->y, msg->z);
-    // std::cout << "Mass 0 position updated: " << this->mass_0_pos << std::endl;
+
+
+// Callback per coordinate complete massa 0 (posizione + rotazione)
+void CableModelPlugin::robot1PoseCallback(const geometry_msgs::Pose::ConstPtr& msg) {
+    this->robot1_pos = {msg->position.x,
+                      msg->position.y,
+                      msg->position.z};
+  this->robot1_rot = {msg->orientation.w,
+                      msg->orientation.x,
+                      msg->orientation.y,
+                      msg->orientation.z};
 }
 
-// Callback per massa n-1
-void CableModelPlugin::massNPositionCallback(const geometry_msgs::Point::ConstPtr& msg) {
-    this->mass_N_pos = ignition::math::Vector3d(msg->x, msg->y, msg->z);
+// Callback per coordinate complete massa N (posizione + rotazione)
+void CableModelPlugin::robot2PoseCallback(const geometry_msgs::Pose::ConstPtr& msg) {
+    this->robot2_pos = {msg->position.x,
+                      msg->position.y,
+                      msg->position.z};
+    this->robot2_rot = {msg->orientation.w,
+                      msg->orientation.x,
+                      msg->orientation.y,
+                      msg->orientation.z};
 }
 
-bool CableModelPlugin::callbackGraspServer(cable_model_pkg::GraspMsg::Request &rqst, cable_model_pkg::GraspMsg::Response &res){
-                            this->isMass0Gripped = rqst.grasp_mass_0;
-                            this->isMassNGripped = rqst.grasp_mass_N;
-                            return true;
-                        }
+bool CableModelPlugin::callbackGraspServer(cable_model_pkg::GraspMsg::Request  &req,cable_model_pkg::GraspMsg::Response &res){
+  this->isMass0Gripped = req.grasp_mass_0;
+  this->isMassNGripped = req.grasp_mass_N;
+  return true;
+}
+
                         
 void CableModelPlugin::OnUpdate(){
-    // auto t = std::chrono::steady_clock::now();
+
+    if (this->isMass0Gripped) {
+        auto link0   = this->cable->getLink(0);
+        auto curr_q0 = link0->WorldPose().Rot();
+        auto new_q0  = this->computeMass0FinalRotation(this->robot1_rot, curr_q0);
+        this->cable->setMassPosition(0, this->robot1_pos, new_q0);
+    }
+
+    // MASSA N
+    if (this->isMassNGripped) {
+        int idxN    = this->num_particles - 1;
+        auto linkN  = this->cable->getLink(idxN);
+        auto curr_qN = linkN->WorldPose().Rot();
+        auto new_qN  = this->computeMassNFinalRotation(this->robot2_rot, curr_qN);
+        this->cable->setMassPosition(idxN, this->robot2_pos, new_qN);
+    }
+
+
     
-    // force_mass_0 = cable->getForceWrtWorld(0);
 
-    // force_mass_0_msg.x = force_mass_0.X();
-    // force_mass_0_msg.y = force_mass_0.Y();
-    // force_mass_0_msg.z = force_mass_0.Z();
-
-    // publish_force_mass_0.publish(force_mass_0_msg);
-
-    // // std::cout << "Time: " << std::chrono::duration_cast<std::chrono::milliseconds>(t - t0).count() << " ms" << std::endl;
-    // t0 = t;
-
-
-    // this->write_forces();
-    // this->write_positions();
-    // update_0_mass_position of 1 mm usando una sinusoidale
-
-    // ignition::math::Vector3d new_pos = cable->getPositionWrtWorld(0);
-    // new_pos.X() += 0.004 * sin(std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start_time).count() / 500.0); // Aggiungi un piccolo offset alla posizione X della massa 0
-    // printa la mass pos 
-    
-    if (this->isMass0Gripped) 
-        cable->setMassPosition(0, mass_0_pos);
-
-    if (this->isMassNGripped)
-        cable->setMassPosition(this->num_particles - 1, mass_N_pos);
-
-        
-
+    cable->alignMassFrames();
     cable->updateModel();
 
 }
 
 void CableModelPlugin::write_forces(){
+    // Ottieni il tempo corrente
     auto now = std::chrono::steady_clock::now();
     auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - start_time).count();
 
@@ -218,4 +226,43 @@ void CableModelPlugin::write_positions(){
 
     // Vai alla riga successiva
     position_csv_file << "\n";
+}
+
+
+
+ignition::math::Quaterniond
+CableModelPlugin::computeMass0FinalRotation(
+  const ignition::math::Quaterniond &robot_rot,
+  const ignition::math::Quaterniond &curr_mass_rot)
+{
+  // primo ciclo: memorizzo e restituisco la rotazione corrente
+  if (!this->prev1_initialized_) {
+    this->prev_robot1_rot_   = robot_rot;
+    this->prev1_initialized_ = true;
+    return curr_mass_rot;
+  }
+
+  // calcolo delta
+  auto delta = robot_rot * this->prev_robot1_rot_.Inverse();
+  // aggiorno prev
+  this->prev_robot1_rot_ = robot_rot;
+  // applico delta alla rotazione corrente della massa
+  return delta * curr_mass_rot;
+}
+
+// === massa N ===
+ignition::math::Quaterniond
+CableModelPlugin::computeMassNFinalRotation(
+  const ignition::math::Quaterniond &robot_rot,
+  const ignition::math::Quaterniond &curr_mass_rot)
+{
+  if (!this->prev2_initialized_) {
+    this->prev_robot2_rot_   = robot_rot;
+    this->prev2_initialized_ = true;
+    return curr_mass_rot;
+  }
+
+  auto delta = robot_rot * this->prev_robot2_rot_.Inverse();
+  this->prev_robot2_rot_ = robot_rot;
+  return delta * curr_mass_rot;
 }

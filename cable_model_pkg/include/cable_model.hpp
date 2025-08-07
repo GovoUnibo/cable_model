@@ -48,7 +48,8 @@ namespace cable_utils {
 
             
             ignition::math::Vector3d tripleCross(ignition::math::Vector3d u1, ignition::math::Vector3d u2, ignition::math::Vector3d u3);
-
+            
+            
             bool isFirstMassGrasped, isLastMassGrasped;
             bool use_gravity;
 
@@ -60,6 +61,7 @@ namespace cable_utils {
             
             void useGravity(bool use_gravity);
             void setDamperCoef(float K_d);
+            void setTorsionDamperCoef(float K_t);
             void setYoungModulus(double young_modulus);
             void setPoissonRatio(double poisson_ratio);
             
@@ -70,7 +72,10 @@ namespace cable_utils {
             int getResolution();
             ignition::math::Vector3d getForceWrtWorld(int);
             ignition::math::Vector3d getPositionWrtWorld(int);
+            ignition::math::Vector3d getRotationWrtWorld(int);  // New method to get rotation
+            ignition::math::Vector3d getVelocityWrtWorld(int);
             void updateModel();
+            void alignMassFrames();
             bool isMassFix(int);
             bool isMassGrasped(int);
             
@@ -80,7 +85,14 @@ namespace cable_utils {
             void setFirstMassFixed(bool is_fixed);
             void setLastMassFixed(bool is_fixed);
 
-            void setMassPosition(int i, ignition::math::Vector3d position);
+            void setMassPosition(int i, ignition::math::Vector3d position, ignition::math::Quaterniond rotation = ignition::math::Quaterniond(0, 0, 0, 1));
+            
+            // Orientation management functions for link visualization
+            bool   initialRobotGrasped{false};
+            ignition::math::Quaterniond initialMass0Rot;
+            ignition::math::Quaterniond initialMassNRot;
+
+            void propagatePose(int mass_idx,const ignition::math::Vector3d& position,const ignition::math::Quaterniond& rotation,bool is_grasped);
             
             
     };

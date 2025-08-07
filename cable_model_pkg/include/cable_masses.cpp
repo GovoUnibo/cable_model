@@ -10,8 +10,6 @@ Particle::~Particle() {}
 
 void Particle::setLink(gazebo::physics::LinkPtr link) { this->link = link; }
 
-
-
 void Particle::setCollisionElement(bool collision){ /*Set whether this body will collide with others in the model*/
     link->SetSelfCollide(collision); 
 }
@@ -68,8 +66,8 @@ void Particle::updateAcceleration(ignition::math::Vector3d acc){
 }
 
 void Particle::updateTorque(ignition::math::Vector3d torque_applied){
-    if(!fixed)
-        link->SetTorque(torque_applied);
+    if(!fixed) {link->AddTorque(torque_applied);}
+        // link->SetTorque(torque_applied);
 }
 
 
@@ -87,11 +85,11 @@ ignition::math::Vector3d Particle::getAbsolutePosition(){
     return link->WorldPose().Pos();
 }
 
-ignition::math::Quaterniond Particle::getAbsoluteOrientation(){
+ignition::math::Quaterniond Particle::getAbsoluteRotationQuaternion(){
     return link->WorldPose().Rot();
 }
 
-ignition::math::Vector3d Particle::getAbsoluteRotation(){
+ignition::math::Vector3d Particle::getAbsoluteRotationEuler(){
    return link->WorldPose().Rot().Euler();
 }
 
@@ -101,13 +99,17 @@ ignition::math::Vector3d Particle::getAbsoluteVelocity(){
     // return link->WorldLinearVel();
 }
 
+ignition::math::Vector3d Particle::getAbsoluteAngularVelocity(){
+    return link->WorldAngularVel();
+}
+
             
 ignition::math::Vector3d Particle::getAbosulteAcceleration(){
     return link->WorldLinearAccel();
 }
 
 
-ignition::math::Vector3d Particle::getInitialPosition(){
+ignition::math::Vector3d Particle::getInitialRelPosition(){
     return link->InitialRelativePose().Pos();
 }
 

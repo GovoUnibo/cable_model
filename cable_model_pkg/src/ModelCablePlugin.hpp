@@ -14,10 +14,12 @@
 #include <vector>
 #include <string>
 #include <geometry_msgs/Point.h>
+#include <geometry_msgs/Vector3.h>
+#include <geometry_msgs/Pose.h>
 #include <cable_model.hpp>
 
 #include <cable_model_pkg/GraspMsg.h>
-#include <cable_model_pkg/coordinates.h>
+// #include <cable_model_pkg/coordinates.h>  // No longer needed, using geometry_msgs/Pose
 
 // #include <std_msgs/Bool.h>
 
@@ -32,12 +34,14 @@ namespace gazebo
             CableModelPlugin() : ModelPlugin(){
                 std::cout << "Starting cable model plugin..." << std::endl;
                 grasp_service = ros_nh.advertiseService("set_cable_grasp", &CableModelPlugin::callbackGraspServer, this);
+                simulation_start_time = std::chrono::steady_clock::now();
                 // t0 = std::chrono::steady_clock::now();
             }
 
             ~CableModelPlugin(){
                 ros::shutdown();
                 std::cout << "cable model plugin stopped." << std::endl;
+                
                 if (forces_csv_file.is_open()) {
                     forces_csv_file.close();
                     std::cout << "File forces_data.csv chiuso correttamente." << std::endl;
@@ -67,6 +71,8 @@ namespace gazebo
             void open_positions_csv(std::string);
             void write_positions();
             
+            std::chrono::steady_clock::time_point simulation_start_time;
+            
             ros::ServiceServer grasp_service;
             ros::NodeHandle ros_nh;
             std::ofstream forces_csv_file;
@@ -77,9 +83,11 @@ namespace gazebo
                                         cable_model_pkg::GraspMsg::Response &res
                                     );
             
-            void mass0PositionCallback(const geometry_msgs::Point::ConstPtr& msg);
-            void massNPositionCallback(const geometry_msgs::Point::ConstPtr& msg);
 
+            void robot1PoseCallback(const geometry_msgs::Pose::ConstPtr& msg);
+            void robot2PoseCallback(const geometry_msgs::Pose::ConstPtr& msg);
+
+            
 
             physics::ModelPtr model;
             std::chrono::steady_clock::time_point t0;
@@ -99,17 +107,31 @@ namespace gazebo
             CablePtr cable;
 
             ros::Publisher publish_force_mass_0;
-            ros::Subscriber sub_mass0_pos;
-            ros::Subscriber sub_massN_pos;
+
+            ros::Subscriber sub_mass0_coords;  // Subscriber for mass 0 coordinates (pos + rot)
+            ros::Subscriber sub_massN_coords;  // Subscriber for mass N coordinates (pos + rot)
 
             ignition::math::Vector3d force_mass_0;
-            cable_model_pkg::coordinates force_mass_0_msg;
+            // cable_model_pkg::coordinates force_mass_0_msg;  // Removed - using geometry_msgs/Pose now
 
 
-            ignition::math::Vector3d mass_0_pos;
-            ignition::math::Vector3d mass_N_pos;
+            ignition::math::Vector3d robot1_pos, robot2_pos;
+            ignition::math::Quaterniond robot1_rot, robot2_rot;  // Rotation for mass 0 and N
+
+            ignition::math::Quaterniond computeMass0FinalRotation(const ignition::math::Quaterniond &robot_rot, const ignition::math::Quaterniond &curr_mass_rot);
+            ignition::math::Quaterniond prev_robot1_rot_{0,0,0,1};
+            bool prev1_initialized_{false};
+            ignition::math::Quaterniond computeMassNFinalRotation(const ignition::math::Quaterniond &robot_rot, const ignition::math::Quaterniond &curr_mass_rot);
+            ignition::math::Quaterniond prev_robot2_rot_{0,0,0,1};
+            bool prev2_initialized_{false};
+
+
             bool isMass0Gripped = false;
             bool isMassNGripped = false;
+
+           
+
+
     };
 
     // Register this plugin with the simulator

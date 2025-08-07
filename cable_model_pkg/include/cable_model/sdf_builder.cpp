@@ -69,6 +69,8 @@ void SdfBuilder::setModelType(ModelGeometry model)
         case cylinder:
             open_geometry_model  = "<cylinder>"; 
             close_geometry_model = "</cylinder>";
+            open_dimension  = ""; // Empty for cylinder - dimension handled by sdf_cylinder.cpp
+            close_dimension = ""; // Empty for cylinder - dimension handled by sdf_cylinder.cpp
         break;
     }
 
@@ -278,6 +280,8 @@ string SdfBuilder::getSelfCollision(int index_link)
 }
 
 string SdfBuilder::getGravity(int i){return this->gravity[i];}
+
+int SdfBuilder::getNumOfLinks(){return (int)link_name_list.size();}
 
 std::string SdfBuilder::getPlugin()
 {

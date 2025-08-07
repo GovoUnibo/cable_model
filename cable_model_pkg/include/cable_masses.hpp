@@ -32,11 +32,12 @@ namespace mass{
 
             const gazebo::physics::LinkPtr getLink();
             ignition::math::Vector3d getForce();
-            ignition::math::Vector3d getInitialPosition();
-            ignition::math::Quaterniond getAbsoluteOrientation();
-            ignition::math::Vector3d getAbsoluteRotation();
+            ignition::math::Vector3d getInitialRelPosition();
+            ignition::math::Quaterniond getAbsoluteRotationQuaternion();
+            ignition::math::Vector3d getAbsoluteRotationEuler();
             ignition::math::Vector3d getAbsolutePosition();
             ignition::math::Vector3d getAbsoluteVelocity();
+            ignition::math::Vector3d getAbsoluteAngularVelocity();
             ignition::math::Vector3d getAbosulteAcceleration();
             
 

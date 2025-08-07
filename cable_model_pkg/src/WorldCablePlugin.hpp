@@ -11,9 +11,11 @@
 #include <string>
 
 #include <sdf_sphere.hpp>
+#include <sdf_cylinder.hpp>
 
 using namespace gazebo;
 using namespace sdf_sphere;
+using namespace sdf_cylinder;
 
 
 
@@ -23,18 +25,23 @@ enum _FATAL_ERROR_MSG_TYPE {PARAMETER_MISSING, ROS_ERROR};
 
 
 
-class CableSpawner : public WorldPlugin, private SphereSdf
+class CableSpawner : public WorldPlugin
 {
     private:
         physics::WorldPtr world;
         float width = 0.0, length = 0.0;
         float pos_x = 0.0, pos_y = 0.0, pos_z = 0.0;
         float rot_x = 0.0, rot_y = 0.0, rot_z = 0.0;
-        float mass = 0.0, damping = 0.0, young_modulus = 0.0, poisson_ratio = 0.0;
+        float mass = 0.0, damping = 0.0, young_modulus = 0.0, poisson_ratio = 0.0, torsion_damper = 0.0;
         bool gravity = true;
         float resolution = 1;
         int num_particles, num_particle_links;
         std::string prefix_mass_names;
+        std::string cable_type = "sphere"; // sphere or cylinder
+        
+        // SDF builders
+        SphereSdf sphere_sdf;
+        CylinderSdf cylinder_sdf;
 
         void checkROSInitializzation();
 
