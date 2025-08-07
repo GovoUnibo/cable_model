@@ -44,10 +44,10 @@ include_directories(
 
 )
 
-add_message_files(DIRECTORY msg
-  FILES
-  coordinates.msg
-)
+# add_message_files(DIRECTORY msg
+#   FILES
+#   coordinates.msg
+# )
 
 add_service_files(DIRECTORY srv
   FILES
@@ -70,22 +70,37 @@ catkin_package(
 )
 
 
-add_library(cable_push SHARED src/WorldCablePlugin.cpp  src/WorldCablePlugin.hpp
-                        include/cable_model/sdf_builder.cpp       include/cable_model/sdf_builder.hpp
-                        include/cable_model/sdf_sphere.cpp       include/cable_model/sdf_sphere.hpp
-                        include/cable_model/sdf_cylinder.cpp     include/cable_model/sdf_cylinder.hpp
-                  )
-target_link_libraries(cable_push PUBLIC ${catkin_LIBRARIES} ${GAZEBO_LIBRARIES})
+# COMMENTED OUT - Original world plugin
+# add_library(cable_push SHARED src/WorldCablePlugin.cpp  src/WorldCablePlugin.hpp
+#                         include/cable_model/sdf_builder.cpp       include/cable_model/sdf_builder.hpp
+#                         include/cable_model/sdf_sphere.cpp       include/cable_model/sdf_sphere.hpp
+#                         include/cable_model/sdf_cylinder.cpp     include/cable_model/sdf_cylinder.hpp
+#                   )
+# target_link_libraries(cable_push PUBLIC ${catkin_LIBRARIES} ${GAZEBO_LIBRARIES})
+
+# COMMENTED OUT - Original model plugin (full version)
+# add_library(model_push SHARED src/ModelCablePlugin.cpp src/ModelCablePlugin.hpp
+#                               include/csv_exporter.cpp include/csv_exporter.hpp
+#                               include/cable_dynamics.cpp include/cable_dynamics.hpp
+#                               include/cable_model.cpp include/cable_model.hpp  
+#                               include/cable_masses.cpp include/cable_masses.hpp                          
+# )
+# target_link_libraries(model_push PUBLIC ${GAZEBO_LIBRARIES}  ${catkin_LIBRARIES} ${EIGEN3_LIBRARIES})
+# add_dependencies(model_push ${catkin_EXPORTED_TARGETS}) #da aggiungere se si usano i messaggi, perchè altrimenti builda lo script prima del build dei messaggi
 
 
-add_library(model_push SHARED src/ModelCablePlugin.cpp src/ModelCablePlugin.hpp
-                              include/csv_exporter.cpp include/csv_exporter.hpp
-                              include/cable_dynamics.cpp include/cable_dynamics.hpp
-                              include/cable_model.cpp include/cable_model.hpp  
-                              include/cable_masses.cpp include/cable_masses.hpp                          
-)
-target_link_libraries(model_push PUBLIC ${GAZEBO_LIBRARIES}  ${catkin_LIBRARIES} ${EIGEN3_LIBRARIES})
-add_dependencies(model_push ${catkin_EXPORTED_TARGETS}) #da aggiungere se si usano i messaggi, perchè altrimenti builda lo script prima del build dei messaggi
+add_library(cable_push SHARED src/CablePlugin.cpp src/CablePlugin.hpp
+                              include/cable_model/sdf_builder.cpp       include/cable_model/sdf_builder.hpp
+                              include/cable_model/sdf_sphere.cpp       include/cable_model/sdf_sphere.hpp
+                              include/cable_model/sdf_cylinder.cpp     include/cable_model/sdf_cylinder.hpp
+                              include/RKDP45.cpp          include/RKDP45.hpp
+                              include/cable_dynamics.cpp  include/cable_dynamics.hpp
+                              include/cable_model.cpp     include/cable_model.hpp  
+                              include/cable_masses.cpp    include/cable_masses.hpp   
+                              )                       
+
+target_link_libraries(cable_push PUBLIC ${GAZEBO_LIBRARIES}  ${catkin_LIBRARIES} ${EIGEN3_LIBRARIES})
+add_dependencies(cable_push ${catkin_EXPORTED_TARGETS})
 
 
 

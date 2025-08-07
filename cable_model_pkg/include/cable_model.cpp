@@ -205,10 +205,59 @@ void Cable::updateModel(){
         ignition::math::Vector3d Tproj = tangent * mag;
 
         // applichiamo il momento puro proiettato
-        this->cable_masses[i].updateTorque(Tproj);
+        // this->cable_masses[i].updateTorque(Tproj);
     }
 
 
+}
+
+
+double Cable::getStepScale(double baseDt)
+{
+  int N = cable_masses.size();
+  int D = 3 * N;
+
+  // 1) Raccogli posizioni e velocità
+  std::vector<ignition::math::Vector3d> pos(N), vel(N);
+  for(int i=0; i<N; ++i){
+    pos[i] = cable_masses[i].getAbsolutePosition();
+    vel[i] = cable_masses[i].getAbsoluteVelocity();
+  }
+
+  // 2) Chiedi al controller il nuovo dt
+  double dtNew = this->stepCtrl.computeDt(baseDt, pos, vel);
+  return dtNew / baseDt;
+}
+
+// --- StepSizeController implementation ---
+double Cable::StepSizeController::computeDt(double baseDt, const std::vector<ignition::math::Vector3d>& positions, const std::vector<ignition::math::Vector3d>& velocities){
+  int N = positions.size();
+  if (N == 0) return baseDt; // Safety check
+
+  // Per ora utilizziamo un approccio più semplice e sicuro
+  // Invece di RKDP45 completo, utilizziamo un'euristica basata sulle velocità e accelerazioni
+  
+  double maxVelMagnitude = 0.0;
+  for(const auto& vel : velocities) {
+    maxVelMagnitude = std::max(maxVelMagnitude, vel.Length());
+  }
+  
+  // Se le velocità sono molto alte, riduci il timestep
+  // Non aumentare mai sopra il timestep base per mantenere stabilità
+  double speedFactor = 1.0;
+  
+  if (maxVelMagnitude > 1.0) {
+    speedFactor = 0.5; // Riduci timestep per alte velocità
+  } else if (maxVelMagnitude > 0.5) {
+    speedFactor = 0.8; // Riduci moderatamente per velocità medio-alte
+  }
+  // Per velocità basse (< 0.5), mantieni speedFactor = 1.0 (nessun aumento)
+  
+  // Applica limiti di sicurezza: solo riduzione, mai aumento
+  double newDt = baseDt * speedFactor;
+  newDt = std::clamp(newDt, baseDt * 0.1, baseDt * 1.0);
+  
+  return newDt;
 }
 
 

@@ -54,10 +54,27 @@ void Particle::updateVelocity(ignition::math::Vector3d vel) {
 }
 
 void Particle::updateForce(ignition::math::Vector3d force_applied){
+    //saturare ad una forza lungo le componenti x, y, z
+
+    // double max_force = 3.0;
+    // double fx = std::clamp(force_applied.X(), -max_force, max_force);
+    // double fy = std::clamp(force_applied.Y(), -max_force, max_force);
+    // double fz = std::clamp(force_applied.Z(), -max_force, max_force); 
+
+    // ignition::math::Vector3d force_applied(fx, fy, fz);
+
+    // cout << "Force applied: " << force_applied << endl;
+
+
     if(!fixed)
         link->AddLinkForce(force_applied);
 
         // link->SetForce(force_applied);
+}
+
+void Particle::updateTorque(ignition::math::Vector3d torque_applied){
+    if(!fixed) {link->AddTorque(torque_applied);}
+        // link->SetTorque(torque_applied);
 }
 
 void Particle::updateAcceleration(ignition::math::Vector3d acc){
@@ -65,10 +82,7 @@ void Particle::updateAcceleration(ignition::math::Vector3d acc){
     //     link->SetLinearAccel(acc);  dice che non esiste mentre nella documentazione esiste... deprecated?
 }
 
-void Particle::updateTorque(ignition::math::Vector3d torque_applied){
-    if(!fixed) {link->AddTorque(torque_applied);}
-        // link->SetTorque(torque_applied);
-}
+
 
 
 void Particle::updatePosition(ignition::math::Pose3d pos){

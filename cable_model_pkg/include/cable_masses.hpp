@@ -8,6 +8,8 @@
 #include <ignition/math/Pose3.hh>
 #include <ignition/math/Quaternion.hh>
 #include <iostream>
+#include <algorithm>
+#include <cmath>
 
 namespace mass{
 
@@ -42,7 +44,7 @@ namespace mass{
             
 
 
-            void updateForce(ignition::math::Vector3d force_applied);
+            void updateForce(ignition::math::Vector3d);
             void updateTorque(ignition::math::Vector3d torque_applied);
             
             void updatePosition(ignition::math::Pose3d pos);

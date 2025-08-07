@@ -9,6 +9,7 @@
 #include <vector>
 #include "cable_masses.hpp"
 #include "cable_dynamics.hpp"
+#include "RKDP45.hpp"
 
 
 
@@ -92,8 +93,25 @@ namespace cable_utils {
             ignition::math::Quaterniond initialMass0Rot;
             ignition::math::Quaterniond initialMassNRot;
 
-            void propagatePose(int mass_idx,const ignition::math::Vector3d& position,const ignition::math::Quaterniond& rotation,bool is_grasped);
-            
+            double getStepScale(double baseDt);
+
+
+
+
+            class StepSizeController{
+                public:
+                    StepSizeController(double absTol, double relTol)
+                    : integrator(absTol, relTol) {}
+
+                    /// Ritorna il nuovo dt in base a baseDt, posizioni e velocità
+                    double computeDt(double baseDt,
+                                    const std::vector<ignition::math::Vector3d>& pos,
+                                    const std::vector<ignition::math::Vector3d>& vel);
+
+                private:
+                    RKDP45 integrator;
+                };
+            StepSizeController stepCtrl{1e-6, 1e-6};
             
     };
 

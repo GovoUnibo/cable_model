@@ -98,7 +98,6 @@ void MassSpringDamping::setTwistingElasticCoef(double initial_segm_length){
 
 void MassSpringDamping::setDamperCoef(float K_d){ 
     this->damping_factor = K_d;
-    // this->damping_factor = 2*sqrt(this->linear_spring);
     }
 
 void MassSpringDamping::setTorsionDamperCoef(float K_t){
@@ -193,20 +192,7 @@ void MassSpringDamping::linearSpringForces(){
         // std::cout << "Linear force " << i << ": " << this->linear_forces[i] << std::endl;
 }
 
-void MassSpringDamping::updateBeta(){
-    this->beta.front() = 0.0;
-    for(int i=1; i<this->num_of_masses -1; i++)
-        this->beta[i] = atan(
-                            ( (this->mass_positions[i+1] - this->mass_positions[i]).Cross(this->mass_positions[i] - this->mass_positions[i-1]) ).Length()
-                            /
-                            ( ((this->mass_positions[i+1] - this->mass_positions[i])).Dot(this->mass_positions[i] - this->mass_positions[i-1]) )
-                            );
 
-    this->beta.back() = 0.0;
-    //PRINT
-    // for(int i=0; i<this->num_of_masses; i++)
-    //     std::cout << "Beta" << i << ": " << this->beta[i] << std::endl;
-}
 
 ignition::math::Vector3d MassSpringDamping::getLinkLength(int i) {
     return this->mass_positions[i] - mass_positions[i-1];
@@ -227,6 +213,22 @@ ignition::math::Vector3d MassSpringDamping::tripleCross(int i, int j, int k) {
 
 
 
+void MassSpringDamping::updateBeta(){
+    this->beta.front() = 0.0;
+    for(int i=1; i<this->num_of_masses -1; i++)
+        this->beta[i] = atan(
+                            ( (this->mass_positions[i+1] - this->mass_positions[i]).Cross(this->mass_positions[i] - this->mass_positions[i-1]) ).Length()
+                            /
+                            ( ((this->mass_positions[i+1] - this->mass_positions[i])).Dot(this->mass_positions[i] - this->mass_positions[i-1]) )
+                            );
+
+    this->beta.back() = 0.0;
+    for (int i=0; i<this->num_of_masses; i++)
+        if (!this->beta[i]< 1e-6) 
+            this->beta[i] = 1e-6; // Set a small value to avoid division by zero
+    // for(int i=0; i<this->num_of_masses; i++)
+    //     std::cout << "Beta" << i << ": " << this->beta[i] << std::endl;
+}
 
 
 void MassSpringDamping::bendingSpringForces(){
@@ -271,17 +273,46 @@ double MassSpringDamping::getBeta(ignition::math::Vector3d link_vec, ignition::m
 
 void MassSpringDamping::addInitialConstrainSpring(){
 
-    this->bending_forces[1]  += ( this->constrain_spring * this->getBeta(getLinkLength(1), fixed_axis) / this->getLinkLength(1).Length() ) * ( this->tripleCross(getUnitVersor(1), fixed_axis, getUnitVersor(1)) / sin(this->getBeta(getLinkLength(1), fixed_axis)) );
-    this->bending_forces[1].Correct();
-    // this->linear_forces[0]= this->bending_forces[1];
+    // this->bending_forces[1]  += ( this->constrain_spring * this->getBeta(getLinkLength(1), fixed_axis) / this->getLinkLength(1).Length() ) * ( this->tripleCross(getUnitVersor(1), fixed_axis, getUnitVersor(1)) / sin(this->getBeta(getLinkLength(1), fixed_axis)) );
+    //this->bending_forces[1].Correct();
+    double Beta0 = this->getBeta(this->getLinkLength(0), fixed_axis);
+    // Protezione da angoli troppo piccoli (evita divisione per zero)
+    if (std::fabs(Beta0) > 1e-6) {
+        // Versore del link 0
+        ignition::math::Vector3d u0 = this->getUnitVersor(0);
+        // Forza angolare di piegatura
+        ignition::math::Vector3d bendingForce0 = (constrain_spring * Beta0 / this->getLinkLength(0).Length())
+                                  * (tripleCross(u0, fixed_axis, u0) / std::sin(Beta0));
+        // Applico la forza al nodo 1
+        this->bending_forces[1] += bendingForce0;
+        this->bending_forces[1].Correct();
+        // Reazione traslazionale sul nodo 0 (per bloccare anche la traslazione)
+        this->linear_forces[0]   -= bendingForce0;
+    }
+
+    
 }
 
 void MassSpringDamping::addFinalConstrainSpring()
 {
     //penuiltimo elemento
-    this->bending_forces[num_of_masses - 2]  += ( this->constrain_spring * this->getBeta(fixed_axis, -getLinkLength(num_of_masses - 1)) / this->getLinkLength(num_of_masses - 2).Length() ) * ( this->tripleCross(getUnitVersor(num_of_masses - 1), getUnitVersor(num_of_masses - 1), fixed_axis) / sin(this->getBeta(fixed_axis, -getLinkLength(num_of_masses - 1))) );
-    // if (this->bending_forces[1].X()>1) this->bending_forces[1].X() = 1;
-    this->bending_forces[num_of_masses - 2].Correct();
+    // this->bending_forces[num_of_masses - 2]  += ( this->constrain_spring * this->getBeta(fixed_axis, -getLinkLength(num_of_masses - 1)) / this->getLinkLength(num_of_masses - 2).Length() ) * ( this->tripleCross(getUnitVersor(num_of_masses - 1), getUnitVersor(num_of_masses - 1), fixed_axis) / sin(this->getBeta(fixed_axis, -getLinkLength(num_of_masses - 1))) );
+    int idx = this->num_of_masses - 2;
+    // Calcolo dell'angolo BetaN tra link idx e fixed_axis
+    double BetaN = this->getBeta(this->getLinkLength(idx), fixed_axis);
+    // Protezione da angoli troppo piccoli
+    if (std::fabs(BetaN) > 1e-6) {
+        // Versore del link idx
+        ignition::math::Vector3d uN = this->getUnitVersor(idx);
+        // Forza angolare di piegatura
+        ignition::math::Vector3d bendingForceN = (constrain_spring * BetaN / this->getLinkLength(idx).Length())
+                                   * (tripleCross(uN, fixed_axis, uN) / std::sin(BetaN));
+        // Applico la forza al nodo n-2
+        this->bending_forces[idx] += bendingForceN;
+        this->bending_forces[idx].Correct();
+        // Reazione traslazionale sul nodo n-1
+        this->linear_forces[this->num_of_masses - 1] -= bendingForceN;
+    }
     // this->linear_forces[num_of_masses - 1] = this->bending_forces[num_of_masses - 2];
 }
 
@@ -409,10 +440,5 @@ ignition::math::Vector3d MassSpringDamping::getResultantForce(int i) {
     // Re-enabled twisting forces with moderate scaling for stability
     return this->inertia_forces[i] + linear_forces[i] + this->damping_forces[i] + this->bending_forces[i] + this->gravity_forces;
 }
-
-
-
-
-
 
 

@@ -93,6 +93,10 @@ void SdfBuilder::setJoint(std::string joint_name, std::string parent, std::strin
                 "<parent>" + parent + "</parent>" +
                 "<child>" + child + "</child>" +
                 "<axis>" + to_string(axis[0]) +to_string(axis[1]) + to_string(axis[2])  +"</axis>"+
+                // "<limit>\n" +
+                //     "<length>0.1</length>\n" + // Example length, adjust as needed
+                //     "<damping>0.1</damping>\n" + // Example damping, adjust as needed
+                // "</limit>\n" +
                 "</joint>"
                 );
         break;
