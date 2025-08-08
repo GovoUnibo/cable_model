@@ -9,7 +9,7 @@
 #include <vector>
 #include "cable_masses.hpp"
 #include "cable_dynamics.hpp"
-#include "RKDP45.hpp"
+#include <algorithm>  
 
 
 
@@ -46,6 +46,7 @@ namespace cable_utils {
             ignition::math::Vector3d getMassVel(int i);
             double getBeta(int i);
             ignition::math::Vector3d getVector(int i);
+            
 
             
             ignition::math::Vector3d tripleCross(ignition::math::Vector3d u1, ignition::math::Vector3d u2, ignition::math::Vector3d u3);
@@ -53,6 +54,7 @@ namespace cable_utils {
             
             bool isFirstMassGrasped, isLastMassGrasped;
             bool use_gravity;
+            double last_dt_ = 0.0; // last dt used for the cable dynamics
 
 
         public:
@@ -93,25 +95,13 @@ namespace cable_utils {
             ignition::math::Quaterniond initialMass0Rot;
             ignition::math::Quaterniond initialMassNRot;
 
-            double getStepScale(double baseDt);
+            double getpanicAdaptiveDt(double baseDt);
+           
 
 
 
 
-            class StepSizeController{
-                public:
-                    StepSizeController(double absTol, double relTol)
-                    : integrator(absTol, relTol) {}
 
-                    /// Ritorna il nuovo dt in base a baseDt, posizioni e velocità
-                    double computeDt(double baseDt,
-                                    const std::vector<ignition::math::Vector3d>& pos,
-                                    const std::vector<ignition::math::Vector3d>& vel);
-
-                private:
-                    RKDP45 integrator;
-                };
-            StepSizeController stepCtrl{1e-6, 1e-6};
             
     };
 

@@ -66,7 +66,7 @@ void MassSpringDamping::setYoungModulus(double young_modulus){
 }
 
 void MassSpringDamping::setMaxTensileStress(double length){
-    double maximum_permissible_deformation = 1E-3; // mm
+    double maximum_permissible_deformation = 1E-2; // mm
     double strain = (maximum_permissible_deformation)/this->l0;
     double tensile_stress = this->E*strain;
     this->F_max = tensile_stress*this->A;
@@ -97,8 +97,23 @@ void MassSpringDamping::setTwistingElasticCoef(double initial_segm_length){
 }
 
 void MassSpringDamping::setDamperCoef(float K_d){ 
-    this->damping_factor = K_d;
+    // this->damping_factor = K_d;
+    if (this->linear_spring > 0.0 && this->discrete_mass > 0.0) {
+        const double ccrit_rel = std::sqrt(2.0 * this->linear_spring * this->discrete_mass);
+
+        // fattore di smorzamento (zeta). 0.8 è un buon valore "quasi-critico"
+        const double zeta = 0.8;
+
+        // opzionale: limite superiore per evitare smorzamento numericamente troppo rigido
+        // (se usi passi molto grandi). Se non hai un dt qui, evita clamp aggressivi.
+        this->damping_factor = zeta * ccrit_rel;
+    } else {
+        // fallback conservativo
+        this->damping_factor = 0.0;
     }
+
+    std::cout << " | tuned damping_factor (c): " << this->damping_factor << std::endl;
+}
 
 void MassSpringDamping::setTorsionDamperCoef(float K_t){
     this->torsion_damper = K_t;
@@ -148,9 +163,6 @@ void MassSpringDamping::computeDampingForces() {
     //                                 - this->damping_factor*this->relative_velocities[i+1];
     // this->damping_forces.back() = this->damping_factor*this->relative_velocities.back() - this->damping_factor*this->relative_velocities[this->num_of_masses-2];
     
-
-
-
     // Applichiamo lo smorzamento tra masse adiacenti
     for (int i = 0; i < this->num_of_masses - 1; ++i) {
         ignition::math::Vector3d damping_force = this->damping_factor * this->relative_velocities[i];
@@ -178,19 +190,28 @@ void MassSpringDamping::linearSpringForces(){
     // }             
     // this->linear_forces.back() = + this->linear_spring*round_to((this->getLinkLength(num_of_masses-1).Length() - this->l0/this->num_of_links), 1e-5)*this->getUnitVersor(this->num_of_masses-1);
 
-    this->linear_forces.front() = - this->linear_spring * round_to((this->getLinkLength(1).Length() - this->l0 / this->num_of_links), 1e-5) * this->getUnitVersor(1);
+    for (int i = 0; i < this->num_of_masses; ++i) {
+        this->linear_forces[i] = ignition::math::Vector3d::Zero;
+    }
+
+    float mass_to_mass_distance = this->l0 / this->num_of_links;
+
+    this->linear_forces.front() = - this->linear_spring * round_to((this->getLinkLength(1).Length() - mass_to_mass_distance), 1e-5) * this->getUnitVersor(1);
 
     for (int i = 1; i < this->num_of_masses - 1; i++) {
         this->linear_forces[i] = 
-            - this->linear_spring * round_to((this->getLinkLength(i).Length() - this->l0 / this->num_of_links), 1e-5) * this->getUnitVersor(i)
-            + this->linear_spring * round_to((this->getLinkLength(i + 1).Length() - this->l0 / this->num_of_links), 1e-5) * this->getUnitVersor(i + 1);
+            - this->linear_spring * round_to((this->getLinkLength(i).Length() - mass_to_mass_distance), 1e-5) * this->getUnitVersor(i)
+            + this->linear_spring * round_to((this->getLinkLength(i + 1).Length() - mass_to_mass_distance), 1e-5) * this->getUnitVersor(i + 1);
     }
 
-    this->linear_forces.back() = + this->linear_spring * round_to((this->getLinkLength(num_of_masses - 1).Length() - this->l0 / this->num_of_links), 1e-5) * this->getUnitVersor(num_of_masses - 1);
+    this->linear_forces.back() = + this->linear_spring * round_to((this->getLinkLength(num_of_masses - 1).Length() - mass_to_mass_distance), 1e-5) * this->getUnitVersor(num_of_masses - 1);
     //PRINT
     // for(int i=0; i<this->num_of_masses; i++)
         // std::cout << "Linear force " << i << ": " << this->linear_forces[i] << std::endl;
 }
+
+
+
 
 
 
@@ -199,8 +220,10 @@ ignition::math::Vector3d MassSpringDamping::getLinkLength(int i) {
 }
 
 ignition::math::Vector3d MassSpringDamping::getUnitVersor(int i) {
-    ignition::math::Vector3d vector = this->getLinkLength(i);
-    return vector / vector.Length();
+    ignition::math::Vector3d v = this->getLinkLength(i);
+    double len = v.Length();
+    if (len < 1e-9) return ignition::math::Vector3d::Zero;
+    return v / len;
 }
 
 ignition::math::Vector3d MassSpringDamping::tripleCross(int i, int j, int k) {
@@ -223,9 +246,10 @@ void MassSpringDamping::updateBeta(){
                             );
 
     this->beta.back() = 0.0;
-    for (int i=0; i<this->num_of_masses; i++)
-        if (!this->beta[i]< 1e-6) 
-            this->beta[i] = 1e-6; // Set a small value to avoid division by zero
+    for (int i = 0; i < this->num_of_masses; ++i) {
+        if (std::fabs(this->beta[i]) < 1e-6)
+            this->beta[i] = std::copysign(1e-6, this->beta[i]); // evita /0 mantenendo il segno
+    }
     // for(int i=0; i<this->num_of_masses; i++)
     //     std::cout << "Beta" << i << ": " << this->beta[i] << std::endl;
 }
@@ -233,33 +257,57 @@ void MassSpringDamping::updateBeta(){
 
 void MassSpringDamping::bendingSpringForces(){
     this->updateBeta();
-    this->bending_forces[0] =     ( this->bending_spring*this->beta[1] / this->getLinkLength(1).Length() )   * ( this->tripleCross(1, 1, 2) / sin(this->beta[1]) );
 
-    this->bending_forces[1] =   - ( this->bending_spring * this->beta[1] / this->getLinkLength(1).Length() ) * ( this->tripleCross(1, 1, 2) / sin(this->beta[1]) )
-                                - ( this->bending_spring * this->beta[1] / this->getLinkLength(2).Length() ) * ( this->tripleCross(2, 1, 2) / sin(this->beta[1]) )
-                                + ( this->bending_spring * this->beta[2] / this->getLinkLength(2).Length() ) * ( this->tripleCross(2, 2, 3) / sin(this->beta[2]) );
+    // --- safe sin() per evitare divisioni per ~0 ---
+    constexpr double MIN_SIN = 1e-3; // alza/abbassa se vuoi più/meno aggressivo
+    auto safeSin = [&](double b) {
+        double s = std::sin(b);
+        if (!std::isfinite(s) || std::fabs(s) < MIN_SIN)
+            s = (s >= 0.0 ? MIN_SIN : -MIN_SIN);
+        return s;
+    };
 
-    for (int i=2;i<this->num_of_masses-2;i++){
-        this->bending_forces[i] =   ( this->bending_spring * this->beta[i-1]  / this->getLinkLength(i).Length()   ) * ( this->tripleCross(i, i-1, i)     / sin(this->beta[i-1]))
-                                  - ( this->bending_spring * this->beta[i]    / this->getLinkLength(i).Length()   ) * ( this->tripleCross(i, i, i+1)     / sin(this->beta[i])  )
-                                  - ( this->bending_spring * this->beta[i]    / this->getLinkLength(i+1).Length() ) * ( this->tripleCross(i+1, i, i+1)   / sin(this->beta[i])  )
-                                  + ( this->bending_spring * this->beta[i+1]  / this->getLinkLength(i+1).Length() ) * ( this->tripleCross(i+1, i+1, i+2) / sin(this->beta[i+1]));
+    this->bending_forces[0] =
+        ( this->bending_spring * this->beta[1] / this->getLinkLength(1).Length() ) *
+        ( this->tripleCross(1, 1, 2) / safeSin(this->beta[1]) );
 
+    this->bending_forces[1] =
+        - ( this->bending_spring * this->beta[1] / this->getLinkLength(1).Length() ) *
+          ( this->tripleCross(1, 1, 2) / safeSin(this->beta[1]) )
+        - ( this->bending_spring * this->beta[1] / this->getLinkLength(2).Length() ) *
+          ( this->tripleCross(2, 1, 2) / safeSin(this->beta[1]) )
+        + ( this->bending_spring * this->beta[2] / this->getLinkLength(2).Length() ) *
+          ( this->tripleCross(2, 2, 3) / safeSin(this->beta[2]) );
+
+    for (int i = 2; i < this->num_of_masses - 2; ++i) {
+        this->bending_forces[i] =
+            ( this->bending_spring * this->beta[i-1] / this->getLinkLength(i).Length() ) *
+              ( this->tripleCross(i, i-1, i)   / safeSin(this->beta[i-1]) )
+          - ( this->bending_spring * this->beta[i]   / this->getLinkLength(i).Length() ) *
+              ( this->tripleCross(i, i,   i+1) / safeSin(this->beta[i]) )
+          - ( this->bending_spring * this->beta[i]   / this->getLinkLength(i+1).Length() ) *
+              ( this->tripleCross(i+1, i, i+1) / safeSin(this->beta[i]) )
+          + ( this->bending_spring * this->beta[i+1] / this->getLinkLength(i+1).Length() ) *
+              ( this->tripleCross(i+1, i+1, i+2) / safeSin(this->beta[i+1]) );
     }
 
-    this->bending_forces[num_of_masses - 2] =    ( this->bending_spring * this->beta[num_of_masses - 3]  / this->getLinkLength(num_of_masses - 2).Length() ) * ( this->tripleCross(num_of_masses - 2, num_of_masses - 3, num_of_masses - 2) / sin(this->beta[num_of_masses - 3]))
-                                               - ( this->bending_spring * this->beta[num_of_masses - 2]  / this->getLinkLength(num_of_masses - 2).Length() ) * ( this->tripleCross(num_of_masses - 2, num_of_masses - 2, num_of_masses - 1) / sin(this->beta[num_of_masses - 2]))
-                                               - ( this->bending_spring * this->beta[num_of_masses - 2]  / this->getLinkLength(num_of_masses - 1).Length() ) * ( this->tripleCross(num_of_masses - 1, num_of_masses - 2, num_of_masses - 1) / sin(this->beta[num_of_masses - 2]));
+    this->bending_forces[num_of_masses - 2] =
+        ( this->bending_spring * this->beta[num_of_masses - 3] / this->getLinkLength(num_of_masses - 2).Length() ) *
+          ( this->tripleCross(num_of_masses - 2, num_of_masses - 3, num_of_masses - 2) / safeSin(this->beta[num_of_masses - 3]) )
+      - ( this->bending_spring * this->beta[num_of_masses - 2] / this->getLinkLength(num_of_masses - 2).Length() ) *
+          ( this->tripleCross(num_of_masses - 2, num_of_masses - 2, num_of_masses - 1) / safeSin(this->beta[num_of_masses - 2]) )
+      - ( this->bending_spring * this->beta[num_of_masses - 2] / this->getLinkLength(num_of_masses - 1).Length() ) *
+          ( this->tripleCross(num_of_masses - 1, num_of_masses - 2, num_of_masses - 1) / safeSin(this->beta[num_of_masses - 2]) );
 
-    this->bending_forces.back() = (this->bending_spring * this->beta[num_of_masses -2] / this->getLinkLength(num_of_masses - 1).Length()) * tripleCross(num_of_masses - 1, num_of_masses - 2, num_of_masses - 1) /sin(this->beta[num_of_masses - 1]);
-    //   ignition::math::Vector3d::Zero;
-    for(int i=0; i<this->num_of_masses; i++){
-        //if (!this->bending_forces[i].IsFinite())  //*See if a point is finite (e.g., not nan)
+    // BUG FIX: qui prima dividevi per sin(beta[num-1]) ma il numeratore usa beta[num-2]
+    this->bending_forces.back() =
+        ( this->bending_spring * this->beta[num_of_masses - 2] / this->getLinkLength(num_of_masses - 1).Length() ) *
+        ( this->tripleCross(num_of_masses - 1, num_of_masses - 2, num_of_masses - 1) / safeSin(this->beta[num_of_masses - 2]) );
+
+    for (int i = 0; i < this->num_of_masses; ++i)
         this->bending_forces[i].Correct();
-    }
-
-
 }
+
 
 ignition::math::Vector3d MassSpringDamping::tripleCross(ignition::math::Vector3d u1,
                                                         ignition::math::Vector3d u2,
@@ -438,6 +486,34 @@ void MassSpringDamping::evaluateGravity()
 
 ignition::math::Vector3d MassSpringDamping::getResultantForce(int i) {
     // Re-enabled twisting forces with moderate scaling for stability
+    
+    // Debug thresholds
+    // double linear_threshold = 100.0;   // Adjust as needed
+    // double bending_threshold = 5.0;  // Adjust as needed
+    
+    // // Check linear forces
+    // double linear_magnitude = this->linear_forces[i].Length();
+    // if(linear_magnitude > linear_threshold) {
+    //     std::cout << "DEBUG: Linear force at mass " << i << " exceeds threshold! "
+    //               << "Magnitude: " << linear_magnitude << " N, Force: " << this->linear_forces[i] << std::endl;
+    // }
+    
+    // // Print all linear force magnitudes without threshold
+
+    //     for(int j = 0; j < this->num_of_masses; j++) {
+    //         double mag = this->linear_forces[j].Length();
+    //         std::cout << "  Mass " << j << " linear force magnitude: " << mag << " N" << std::endl;
+    //     }
+
+    
+    // this->bending_forces[9] = 0;
+    // double bending_magnitude = this->bending_forces[i].Length();
+    // if(bending_magnitude > bending_threshold) {
+    //     std::cout << "DEBUG: Bending force at mass " << i << " exceeds threshold! "
+    //               << "Magnitude: " << bending_magnitude << " N, Force: " << this->bending_forces[i] << std::endl;
+    // }
+    
+    
     return this->inertia_forces[i] + linear_forces[i] + this->damping_forces[i] + this->bending_forces[i] + this->gravity_forces;
 }
 

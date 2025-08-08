@@ -32,7 +32,7 @@
       <rot_z> 0.0 </rot_z>
       <mass> 0.1 </mass> <!-- 30g -->
       <gravity> 1 </gravity>
-      <damping> 0.6 </damping> <!-- 2*sqrt(stifness) -->  <!-- 2 -->
+      <!--damping> 0.6 </damping--> <!-- 2*sqrt(stifness) -->  <!-- 2 -->
       <torsion_damper>0.3</torsion_damper>
       <poisson_ratio>0.2</poisson_ratio>
       <young_modulus>126000</young_modulus> <!-- 0.126Mpa = 126000, 126Mpa=126000000, 22Mpa = 22000000 , 87.5Mpa = 87500000, 153,12MPa = 153120000 262,38MPa = 262380000 350Mpa = 350000000 -->

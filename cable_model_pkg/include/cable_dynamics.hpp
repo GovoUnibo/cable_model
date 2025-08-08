@@ -52,6 +52,32 @@ namespace cable_dynamics //si usa solitamente il nome del pacchetto dentro cui Ã
             void updateCableTwist(const ignition::math::Quaterniond&, const ignition::math::Quaterniond&);
 
             int num_of_masses, num_of_links;
+
+            std::vector<ignition::math::Vector3d> getMassPositions() const { return this->mass_positions; }
+            std::vector<ignition::math::Vector3d> getMassVelocities() const { return this->mass_velocities; }
+            std::vector<ignition::math::Vector3d> getMassAccelerations() const { return this->mass_accelerations; }
+            std::vector<ignition::math::Vector3d> getMassAngularVelocities() const { return this->mass_angular_velocities; }
+            std::vector<ignition::math::Vector3d> getMassInitialPositions() const { return this->mass_initial_positions; }
+            float getMassToMassDistance() const { return this->l0 / this->num_of_links; }
+            float getInitialCableLength() const { return this->l0; }
+            float getSingleCableMass() const { return this->total_mass; }
+
+            // get dei parametri del cavo
+            float getCableDiameter() const { return this->diameter; }
+            float getCableLength() const { return this->l0; }
+            float getCableDiscretizedMass() const { return this->discrete_mass; }
+            float getCableLinearSpring() const { return this->linear_spring; }
+            float getCableBendingSpring() const { return this->bending_spring; }
+            float getCableTwistingSpring() const { return this->twisting_spring; }
+            float getCableDampingFactor() const { return this->damping_factor; }
+            float getCableConstrainSpring() const { return this->constrain_spring; }
+            float getCableTorsionDamper() const { return this->torsion_damper; }
+            float getCableCrossSectionArea() const { return this->A; }
+            float getCableMomentOfInertia() const { return this->I; }
+            float getCablePolarMomentOfInertia() const { return this->I_p; }
+            float getCableShearModulus() const { return this->G; }
+            float getCableYoungModulus() const { return this->E; }
+            float getCableMaxTensileStress() const { return this->F_max; }
         
         private:
 
@@ -67,8 +93,6 @@ namespace cable_dynamics //si usa solitamente il nome del pacchetto dentro cui Ã
             void linearSpringForces();
             void bendingSpringForces();
 
-            
-            
 
             void setLinearElasticCoef(double length);
             void setBendingElasticCoef(double length);

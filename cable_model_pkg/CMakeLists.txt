@@ -93,10 +93,10 @@ add_library(cable_push SHARED src/CablePlugin.cpp src/CablePlugin.hpp
                               include/cable_model/sdf_builder.cpp       include/cable_model/sdf_builder.hpp
                               include/cable_model/sdf_sphere.cpp       include/cable_model/sdf_sphere.hpp
                               include/cable_model/sdf_cylinder.cpp     include/cable_model/sdf_cylinder.hpp
-                              include/RKDP45.cpp          include/RKDP45.hpp
                               include/cable_dynamics.cpp  include/cable_dynamics.hpp
                               include/cable_model.cpp     include/cable_model.hpp  
-                              include/cable_masses.cpp    include/cable_masses.hpp   
+                              include/cable_masses.cpp    include/cable_masses.hpp  
+                              include/colors.hpp 
                               )                       
 
 target_link_libraries(cable_push PUBLIC ${GAZEBO_LIBRARIES}  ${catkin_LIBRARIES} ${EIGEN3_LIBRARIES})

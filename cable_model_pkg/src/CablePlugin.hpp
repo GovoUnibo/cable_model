@@ -16,10 +16,9 @@
 #include "cable_model/sdf_cylinder.hpp"
 
 #include "cable_model_pkg/GraspMsg.h"
+#include <colors.hpp>
 #include <geometry_msgs/Pose.h>
 
-#define RESET "\033[0m"
-#define ORANGE "\033[38;5;214m"
 
 namespace gazebo
 {

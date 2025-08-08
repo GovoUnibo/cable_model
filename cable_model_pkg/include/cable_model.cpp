@@ -23,10 +23,6 @@ Cable::Cable(gazebo::physics::ModelPtr model, double x_origin, double y_origin, 
         cable_masses[i].setLink(model->GetLink(link_prefix + std::to_string(i))); // get link from model by name
         MassSpringDamping::setMassInitialPosition(cable_masses[i].getInitialRelPosition(), i); // set initial position
     }
-
-
-
-
     // cout << "Mass Distance: " << (cable_masses[29].getInitialRelPosition() - cable_masses[28].getInitialRelPosition()).Length() << endl;
     // cout << "Initial displacement: " << round_to((cable_masses[29].getInitialRelPosition() - cable_masses[28].getInitialRelPosition()).Length() - length/(num_masses - 1), 1e-4) << endl;
 
@@ -166,6 +162,7 @@ void Cable::updateModel(){
     for(int i=0; i<MassSpringDamping::num_of_masses; i++){
         MassSpringDamping::updateMassPosition(cable_masses[i].getAbsolutePosition(), i);
         MassSpringDamping::updateMassVelocity(cable_masses[i].getAbsoluteVelocity(), i);
+        MassSpringDamping::updateAngularVelocity(cable_masses[i].getAbsoluteAngularVelocity(), i);
         MassSpringDamping::updateMassAcceleration(cable_masses[i].getAbosulteAcceleration(), i);
     }
 
@@ -212,54 +209,97 @@ void Cable::updateModel(){
 }
 
 
-double Cable::getStepScale(double baseDt)
-{
-  int N = cable_masses.size();
-  int D = 3 * N;
 
-  // 1) Raccogli posizioni e velocità
-  std::vector<ignition::math::Vector3d> pos(N), vel(N);
-  for(int i=0; i<N; ++i){
-    pos[i] = cable_masses[i].getAbsolutePosition();
-    vel[i] = cable_masses[i].getAbsoluteVelocity();
+double Cable::getpanicAdaptiveDt(double baseDt) {
+  // ---- Lettura posizioni e parametri geometrici ----
+  const auto pos   = this->MassSpringDamping::getMassPositions();
+  const int  N     = static_cast<int>(pos.size());
+  if (N < 2 || this->num_of_links <= 0) return baseDt;
+
+  const double L0seg = static_cast<double>(this->MassSpringDamping::getMassToMassDistance());
+
+  // ---- Parametri fisici/rigidezze ----
+  const double k_lin  = static_cast<double>(this->MassSpringDamping::getCableLinearSpring());
+  const double k_bend = static_cast<double>(this->MassSpringDamping::getCableBendingSpring());
+  const double k_tw   = static_cast<double>(this->MassSpringDamping::getCableTwistingSpring());
+  const double m      = static_cast<double>(this->MassSpringDamping::getCableDiscretizedMass());
+
+  // dt "massimo taglio" (paper): dtPaper = sqrt(m * L0seg / k_max). Se mancano dati, resta prudente.
+  const double k_max = std::max(k_lin, std::max(k_bend, k_tw));
+  double dtPaper = baseDt;
+  if (m > 0.0 && L0seg > 0.0 && k_max > 0.0) {
+    dtPaper = std::sqrt((m * L0seg) / k_max);
+  }
+  // floor RT di sicurezza
+  const double dtFloor = std::max(baseDt * 0.005, 1e-6); // 0.5% del baseDt o 1e-6 s
+  dtPaper = std::clamp(dtPaper, dtFloor, baseDt);
+
+  // ---- Soglie di FORZA (tensione & "compressione") ----
+  const double E    = static_cast<double>(this->MassSpringDamping::getCableYoungModulus());
+  const double A    = static_cast<double>(this->MassSpringDamping::getCableCrossSectionArea());
+  const double Fmax = static_cast<double>(this->MassSpringDamping::getCableMaxTensileStress());
+
+  // Tensione: se Fmax (forza) è noto, usalo; altrimenti E*A*2% come fallback.
+  const double F_TENS_THRESH =
+      (Fmax > 0.0) ? Fmax
+                   : ((E > 0.0 && A > 0.0) ? (E * A * 0.02) : std::numeric_limits<double>::infinity());
+
+  // "Compressione": il cavo idealmente non porta compressione; usiamo una soglia pseudo-forza
+  // proporzionale a quanto permetti di accorciare: F_c_thresh = k_lin * (COMPRESS_PCT * L0seg)
+  const double COMPRESS_PCT  = 0.30; // consenti fino al 30% di accorciamento
+  const double F_COMP_THRESH =
+      (k_lin > 0.0 && L0seg > 0.0) ? (k_lin * (COMPRESS_PCT * L0seg))
+                                   : std::numeric_limits<double>::infinity();
+
+  // ---- Misura della forza assiale massima per link (tensione e compressione) ----
+  double F_tens_max = 0.0;
+  double F_comp_max = 0.0;
+
+  for (int i = 1; i < N; ++i) {
+    const double L = (pos[i] - pos[i - 1]).Length();
+    if (!std::isfinite(L)) continue;
+    const double dl = L - L0seg;
+
+    // modello assiale elementare: F = k_lin * dl
+    if (dl >= 0.0) {
+      F_tens_max = std::max(F_tens_max, k_lin * dl);
+    } else {
+      // "pseudo" forza compressiva: quanto vorrebbe spingere la molla lineare
+      F_comp_max = std::max(F_comp_max, k_lin * (-dl));
+    }
   }
 
-  // 2) Chiedi al controller il nuovo dt
-  double dtNew = this->stepCtrl.computeDt(baseDt, pos, vel);
-  return dtNew / baseDt;
+  // ---- Rapporto rispetto alle soglie ----
+  const double rF_t = (std::isfinite(F_TENS_THRESH)  && F_TENS_THRESH  > 0.0) ? (F_tens_max / F_TENS_THRESH)  : 0.0;
+  const double rF_c = (std::isfinite(F_COMP_THRESH) && F_COMP_THRESH > 0.0) ? (F_comp_max / F_COMP_THRESH) : 0.0;
+  const double r    = std::max(rF_t, rF_c); // misura "quanto sei oltre" (o vicino) al limite
+
+  // ---- Finestra di scalatura: appena superi la soglia (r0) inizi a scalare fino a dtPaper a r1 ----
+  const double r0 = 1.0;  // SOGLIA: appena F supera la soglia, inizia a ridurre
+  const double r1 = 2.0;  // quando F è 2× la soglia, sei al taglio massimo (dtPaper)
+
+  double dt = baseDt;
+  if (r <= r0) {
+    dt = baseDt; // sotto soglia: non toccare
+  } else if (r >= r1) {
+    dt = dtPaper; // oltre finestra: taglio massimo
+  } else {
+    // dentro la finestra: blend lineare da baseDt -> dtPaper
+    const double t = (r - r0) / (r1 - r0); // 0..1
+    dt = baseDt * (1.0 - t) + dtPaper * t;
+  }
+
+  // clamp finale
+  dt = std::clamp(dt, dtPaper, baseDt);
+
+  // logging (saltuario) quando stai tagliando
+  static int cnt = 0;
+  if (r > r0 && ((cnt++ % 30) == 0)) {
+    std::cout << "[cable FORCE scale] F_t(max)=" << F_tens_max << " / " << F_TENS_THRESH
+              << "  F_c(max)=" << F_comp_max << " / " << F_COMP_THRESH
+              << "  r=" << r << "  dtPaper=" << dtPaper << "  dt=" << dt << std::endl;
+  }
+
+  return dt;
 }
-
-// --- StepSizeController implementation ---
-double Cable::StepSizeController::computeDt(double baseDt, const std::vector<ignition::math::Vector3d>& positions, const std::vector<ignition::math::Vector3d>& velocities){
-  int N = positions.size();
-  if (N == 0) return baseDt; // Safety check
-
-  // Per ora utilizziamo un approccio più semplice e sicuro
-  // Invece di RKDP45 completo, utilizziamo un'euristica basata sulle velocità e accelerazioni
-  
-  double maxVelMagnitude = 0.0;
-  for(const auto& vel : velocities) {
-    maxVelMagnitude = std::max(maxVelMagnitude, vel.Length());
-  }
-  
-  // Se le velocità sono molto alte, riduci il timestep
-  // Non aumentare mai sopra il timestep base per mantenere stabilità
-  double speedFactor = 1.0;
-  
-  if (maxVelMagnitude > 1.0) {
-    speedFactor = 0.5; // Riduci timestep per alte velocità
-  } else if (maxVelMagnitude > 0.5) {
-    speedFactor = 0.8; // Riduci moderatamente per velocità medio-alte
-  }
-  // Per velocità basse (< 0.5), mantieni speedFactor = 1.0 (nessun aumento)
-  
-  // Applica limiti di sicurezza: solo riduzione, mai aumento
-  double newDt = baseDt * speedFactor;
-  newDt = std::clamp(newDt, baseDt * 0.1, baseDt * 1.0);
-  
-  return newDt;
-}
-
-
-
 

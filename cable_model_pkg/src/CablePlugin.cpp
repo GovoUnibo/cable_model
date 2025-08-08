@@ -65,12 +65,12 @@ void OptimizedCablePlugin::Load(physics::WorldPtr _parent, sdf::ElementPtr _sdf_
     auto phys = this->world->Physics();
     this->baseDt     = phys->GetMaxStepSize(); 
     this->forceThresh = 200.0; // Newton, taralo tu
-    this->minScale    = 0.1;   // mai sotto il 10% del baseDt
+    this->minScale    = 0.05;   // mai sotto il 10% del baseDt
     this->maxScale    = 1.0;   // mai sopra il 100% del baseDt (no aumento)
     
     // Inizializza variabili per l'ottimizzazione dello step size
     this->stepOptimizationCounter = 0;
-    this->stepOptimizationInterval = 10; // Ottimizza ogni 10 frame per ridurre overhead
+    this->stepOptimizationInterval = 1; // Ottimizza ogni frame per ridurre overhead
     this->lastOptimizedScale = 1.0;
     
 }
@@ -112,8 +112,8 @@ void OptimizedCablePlugin::setupCableModel(){
                                                 this->prefix_mass_names);
 
     cable->useGravity(this->gravity);
-    cable->setDamperCoef(this->damping);
     cable->setYoungModulus(this->young_modulus);
+    cable->setDamperCoef(this->damping);
     cable->setPoissonRatio(this->poisson_ratio);
     cable->setTorsionDamperCoef(this->torsion_damper);
     
@@ -152,6 +152,7 @@ void OptimizedCablePlugin::OnUpdate(){
 
     if (!cable) return; // Safety check
 
+    auto phys = this->cable_model->GetWorld()->Physics();
 
 
     // MASSA 0
@@ -171,22 +172,15 @@ void OptimizedCablePlugin::OnUpdate(){
         this->cable->setMassPosition(idxN, this->robot2_pos, new_qN);
     }
 
-    cable->alignMassFrames();
+    // cable->alignMassFrames();
     cable->updateModel();
 
     // Ottimizzazione del step size adattivo (non ad ogni frame per performance)
-    auto phys = this->cable_model->GetWorld()->Physics();
-    double scale = this->lastOptimizedScale; // Usa l'ultimo valore calcolato
+
     
-    // Calcola nuovo scale solo ogni stepOptimizationInterval frame
-    if (this->stepOptimizationCounter % this->stepOptimizationInterval == 0) {
-        scale = this->cable->getStepScale(this->baseDt);
-        scale = std::clamp(scale, this->minScale, this->maxScale);
-        this->lastOptimizedScale = scale;
-    }
-    this->stepOptimizationCounter++;
-    
-    phys->SetMaxStepSize(this->baseDt * scale);
+    // double dt = cable->getpanicAdaptiveDt(this->baseDt);   
+    // phys->SetMaxStepSize(dt);
+
 }
 
 ignition::math::Quaterniond OptimizedCablePlugin::computeMass0FinalRotation(const ignition::math::Quaterniond &robot_rot, const ignition::math::Quaterniond &curr_mass_rot) {
@@ -296,7 +290,7 @@ void OptimizedCablePlugin::cableInfoMsg()
     ROS_INFO_STREAM(ORANGE << "rot_y = " << this->rot_y << RESET);
     ROS_INFO_STREAM(ORANGE << "rot_z = " << this->rot_z << RESET);
     ROS_INFO_STREAM(ORANGE << "mass = " << this->mass << RESET);
-    ROS_INFO_STREAM(ORANGE << "damping = " << this->damping << RESET);
+    // ROS_INFO_STREAM(ORANGE << "damping = " << this->damping << RESET);
     ROS_INFO_STREAM(ORANGE << "torsion_damper = " << this->torsion_damper << RESET);
     ROS_INFO_STREAM(ORANGE << "young_modulus = " << this->young_modulus << RESET);
     ROS_INFO_STREAM(ORANGE << "poisson_ratio = " << this->poisson_ratio << RESET);
